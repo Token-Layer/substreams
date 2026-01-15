@@ -1,0 +1,2241 @@
+[
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "owner",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "constructor"
+  },
+  {
+    "stateMutability": "payable",
+    "type": "receive"
+  },
+  {
+    "inputs": [],
+    "name": "DOMAIN_SEPARATOR",
+    "outputs": [
+      {
+        "internalType": "bytes32",
+        "name": "",
+        "type": "bytes32"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "components": [
+          {
+            "internalType": "address",
+            "name": "account",
+            "type": "address"
+          },
+          {
+            "internalType": "string",
+            "name": "roleName",
+            "type": "string"
+          }
+        ],
+        "internalType": "struct RoleKey[]",
+        "name": "_roles",
+        "type": "tuple[]"
+      },
+      {
+        "internalType": "uint128[]",
+        "name": "orderNos",
+        "type": "uint128[]"
+      }
+    ],
+    "name": "addRoles",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "components": [
+          {
+            "internalType": "bytes32",
+            "name": "originAddress",
+            "type": "bytes32"
+          },
+          {
+            "internalType": "uint256",
+            "name": "collectibleId",
+            "type": "uint256"
+          },
+          {
+            "internalType": "enum TokenDefs.TokenType",
+            "name": "tokenType",
+            "type": "uint8"
+          },
+          {
+            "internalType": "enum TokenDefs.BlockchainType",
+            "name": "blockchainType",
+            "type": "uint8"
+          },
+          {
+            "internalType": "uint32",
+            "name": "endpointId",
+            "type": "uint32"
+          }
+        ],
+        "internalType": "struct TokenKey",
+        "name": "key",
+        "type": "tuple"
+      },
+      {
+        "internalType": "address",
+        "name": "receiver",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "id",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "amount",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "deadline",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint8",
+        "name": "v",
+        "type": "uint8"
+      },
+      {
+        "internalType": "bytes32",
+        "name": "r",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "bytes32",
+        "name": "s",
+        "type": "bytes32"
+      }
+    ],
+    "name": "airdropWithPermit",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "success",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "activityId",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "uint256",
+        "name": "hubId",
+        "type": "uint256"
+      },
+      {
+        "internalType": "address",
+        "name": "builder",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "payer",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "amountWAD",
+        "type": "uint256"
+      }
+    ],
+    "name": "calculateFees",
+    "outputs": [
+      {
+        "components": [
+          {
+            "internalType": "uint256",
+            "name": "total",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "protocolAmount",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "hubAmount",
+            "type": "uint256"
+          },
+          {
+            "internalType": "address",
+            "name": "protocolFeeTo",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "hubTreasury",
+            "type": "address"
+          },
+          {
+            "internalType": "uint256",
+            "name": "builderAmount",
+            "type": "uint256"
+          },
+          {
+            "internalType": "address",
+            "name": "builder",
+            "type": "address"
+          }
+        ],
+        "internalType": "struct IFeesManager.CalculateFeesResult",
+        "name": "fees",
+        "type": "tuple"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "amountRequested",
+        "type": "uint256"
+      }
+    ],
+    "name": "collectFees",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "amount",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "components": [
+          {
+            "internalType": "uint256",
+            "name": "migrationSupply",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "initialTokenDepositWAD",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "initialReserveDepositWAD",
+            "type": "uint256"
+          },
+          {
+            "components": [
+              {
+                "internalType": "uint128",
+                "name": "reserves",
+                "type": "uint128"
+              },
+              {
+                "internalType": "uint128",
+                "name": "supply",
+                "type": "uint128"
+              }
+            ],
+            "internalType": "struct Pool.StateReserves",
+            "name": "stateReserves",
+            "type": "tuple"
+          },
+          {
+            "components": [
+              {
+                "internalType": "bool",
+                "name": "phase1RoleRequired",
+                "type": "bool"
+              },
+              {
+                "internalType": "bool",
+                "name": "phase2RoleRequired",
+                "type": "bool"
+              },
+              {
+                "internalType": "bool",
+                "name": "phase3RoleRequired",
+                "type": "bool"
+              },
+              {
+                "internalType": "bool",
+                "name": "phase1ParentRoleRequired",
+                "type": "bool"
+              },
+              {
+                "internalType": "bool",
+                "name": "phase2ParentRoleRequired",
+                "type": "bool"
+              },
+              {
+                "internalType": "bool",
+                "name": "phase3ParentRoleRequired",
+                "type": "bool"
+              },
+              {
+                "internalType": "uint40",
+                "name": "phase1TokenLimitPerUser",
+                "type": "uint40"
+              },
+              {
+                "internalType": "uint40",
+                "name": "phase2TokenLimitPerUser",
+                "type": "uint40"
+              },
+              {
+                "internalType": "uint40",
+                "name": "phase3TokenLimitPerUser",
+                "type": "uint40"
+              },
+              {
+                "internalType": "uint32",
+                "name": "startBlock",
+                "type": "uint32"
+              }
+            ],
+            "internalType": "struct Pool.SaleParams",
+            "name": "saleParams",
+            "type": "tuple"
+          },
+          {
+            "internalType": "uint32",
+            "name": "weight",
+            "type": "uint32"
+          },
+          {
+            "internalType": "bool",
+            "name": "migrated",
+            "type": "bool"
+          },
+          {
+            "internalType": "uint32[]",
+            "name": "migrationEndpoints",
+            "type": "uint32[]"
+          }
+        ],
+        "internalType": "struct Pool.State",
+        "name": "pool",
+        "type": "tuple"
+      },
+      {
+        "components": [
+          {
+            "internalType": "bytes32",
+            "name": "originAddress",
+            "type": "bytes32"
+          },
+          {
+            "internalType": "uint256",
+            "name": "collectibleId",
+            "type": "uint256"
+          },
+          {
+            "internalType": "enum TokenDefs.TokenType",
+            "name": "tokenType",
+            "type": "uint8"
+          },
+          {
+            "internalType": "enum TokenDefs.BlockchainType",
+            "name": "blockchainType",
+            "type": "uint8"
+          },
+          {
+            "internalType": "uint32",
+            "name": "endpointId",
+            "type": "uint32"
+          }
+        ],
+        "internalType": "struct TokenKey",
+        "name": "key",
+        "type": "tuple"
+      },
+      {
+        "internalType": "address",
+        "name": "paymentToken",
+        "type": "address"
+      },
+      {
+        "components": [
+          {
+            "internalType": "enum Pool.TargetPoolType",
+            "name": "poolType",
+            "type": "uint8"
+          },
+          {
+            "internalType": "uint256",
+            "name": "migrationReserveSupply",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "migrationTokenSupply",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "creatorReward",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint160",
+            "name": "priceAtMigration",
+            "type": "uint160"
+          },
+          {
+            "internalType": "uint256",
+            "name": "poolTypeId",
+            "type": "uint256"
+          }
+        ],
+        "internalType": "struct Pool.TargetPool",
+        "name": "target",
+        "type": "tuple"
+      }
+    ],
+    "name": "completeTheCurve",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "leftTokenBalance",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "leftUsdBalance",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "string",
+        "name": "name",
+        "type": "string"
+      },
+      {
+        "internalType": "string",
+        "name": "uri",
+        "type": "string"
+      },
+      {
+        "internalType": "bool",
+        "name": "inviteOnly",
+        "type": "bool"
+      },
+      {
+        "internalType": "address",
+        "name": "receiver",
+        "type": "address"
+      }
+    ],
+    "name": "createHub",
+    "outputs": [
+      {
+        "components": [
+          {
+            "internalType": "bytes32",
+            "name": "originAddress",
+            "type": "bytes32"
+          },
+          {
+            "internalType": "uint256",
+            "name": "collectibleId",
+            "type": "uint256"
+          },
+          {
+            "internalType": "enum TokenDefs.TokenType",
+            "name": "tokenType",
+            "type": "uint8"
+          },
+          {
+            "internalType": "enum TokenDefs.BlockchainType",
+            "name": "blockchainType",
+            "type": "uint8"
+          },
+          {
+            "internalType": "uint32",
+            "name": "endpointId",
+            "type": "uint32"
+          }
+        ],
+        "internalType": "struct TokenKey",
+        "name": "key",
+        "type": "tuple"
+      },
+      {
+        "internalType": "address",
+        "name": "account",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "components": [
+          {
+            "internalType": "bytes32",
+            "name": "templateId",
+            "type": "bytes32"
+          },
+          {
+            "internalType": "bytes32",
+            "name": "saltEvm",
+            "type": "bytes32"
+          },
+          {
+            "internalType": "bytes32",
+            "name": "saltSolana",
+            "type": "bytes32"
+          },
+          {
+            "internalType": "string",
+            "name": "name",
+            "type": "string"
+          },
+          {
+            "internalType": "string",
+            "name": "symbol",
+            "type": "string"
+          },
+          {
+            "internalType": "string",
+            "name": "tokenUri",
+            "type": "string"
+          },
+          {
+            "internalType": "bool",
+            "name": "isTransferable",
+            "type": "bool"
+          },
+          {
+            "internalType": "bool",
+            "name": "createTBA",
+            "type": "bool"
+          }
+        ],
+        "internalType": "struct FactoryLogic.TokenParams",
+        "name": "tokenParams",
+        "type": "tuple"
+      },
+      {
+        "components": [
+          {
+            "internalType": "bool",
+            "name": "isTradeable",
+            "type": "bool"
+          },
+          {
+            "internalType": "uint256",
+            "name": "amountIn",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "maxAmountIn",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "tokensOut",
+            "type": "uint256"
+          },
+          {
+            "components": [
+              {
+                "internalType": "bool",
+                "name": "phase1RoleRequired",
+                "type": "bool"
+              },
+              {
+                "internalType": "bool",
+                "name": "phase2RoleRequired",
+                "type": "bool"
+              },
+              {
+                "internalType": "bool",
+                "name": "phase3RoleRequired",
+                "type": "bool"
+              },
+              {
+                "internalType": "bool",
+                "name": "phase1ParentRoleRequired",
+                "type": "bool"
+              },
+              {
+                "internalType": "bool",
+                "name": "phase2ParentRoleRequired",
+                "type": "bool"
+              },
+              {
+                "internalType": "bool",
+                "name": "phase3ParentRoleRequired",
+                "type": "bool"
+              },
+              {
+                "internalType": "uint40",
+                "name": "phase1TokenLimitPerUser",
+                "type": "uint40"
+              },
+              {
+                "internalType": "uint40",
+                "name": "phase2TokenLimitPerUser",
+                "type": "uint40"
+              },
+              {
+                "internalType": "uint40",
+                "name": "phase3TokenLimitPerUser",
+                "type": "uint40"
+              },
+              {
+                "internalType": "uint32",
+                "name": "startBlock",
+                "type": "uint32"
+              }
+            ],
+            "internalType": "struct FactoryLogic.SaleParams",
+            "name": "saleParams",
+            "type": "tuple"
+          },
+          {
+            "internalType": "uint256",
+            "name": "poolType",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint32[]",
+            "name": "migrationEndpoints",
+            "type": "uint32[]"
+          }
+        ],
+        "internalType": "struct FactoryLogic.TradingParams",
+        "name": "tradingParams",
+        "type": "tuple"
+      },
+      {
+        "internalType": "address",
+        "name": "receiver",
+        "type": "address"
+      }
+    ],
+    "name": "createToken",
+    "outputs": [
+      {
+        "components": [
+          {
+            "internalType": "bytes32",
+            "name": "originAddress",
+            "type": "bytes32"
+          },
+          {
+            "internalType": "uint256",
+            "name": "collectibleId",
+            "type": "uint256"
+          },
+          {
+            "internalType": "enum TokenDefs.TokenType",
+            "name": "tokenType",
+            "type": "uint8"
+          },
+          {
+            "internalType": "enum TokenDefs.BlockchainType",
+            "name": "blockchainType",
+            "type": "uint8"
+          },
+          {
+            "internalType": "uint32",
+            "name": "endpointId",
+            "type": "uint32"
+          }
+        ],
+        "internalType": "struct TokenKey",
+        "name": "key",
+        "type": "tuple"
+      },
+      {
+        "components": [
+          {
+            "internalType": "bytes32",
+            "name": "originAddress",
+            "type": "bytes32"
+          },
+          {
+            "internalType": "uint256",
+            "name": "collectibleId",
+            "type": "uint256"
+          },
+          {
+            "internalType": "enum TokenDefs.TokenType",
+            "name": "tokenType",
+            "type": "uint8"
+          },
+          {
+            "internalType": "enum TokenDefs.BlockchainType",
+            "name": "blockchainType",
+            "type": "uint8"
+          },
+          {
+            "internalType": "uint32",
+            "name": "endpointId",
+            "type": "uint32"
+          }
+        ],
+        "internalType": "struct TokenKey",
+        "name": "titleKey",
+        "type": "tuple"
+      },
+      {
+        "internalType": "address",
+        "name": "account",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "components": [
+          {
+            "internalType": "bytes32",
+            "name": "templateId",
+            "type": "bytes32"
+          },
+          {
+            "internalType": "bytes32",
+            "name": "saltEvm",
+            "type": "bytes32"
+          },
+          {
+            "internalType": "bytes32",
+            "name": "saltSolana",
+            "type": "bytes32"
+          },
+          {
+            "internalType": "string",
+            "name": "name",
+            "type": "string"
+          },
+          {
+            "internalType": "string",
+            "name": "symbol",
+            "type": "string"
+          },
+          {
+            "internalType": "string",
+            "name": "tokenUri",
+            "type": "string"
+          },
+          {
+            "internalType": "bool",
+            "name": "isTransferable",
+            "type": "bool"
+          },
+          {
+            "internalType": "bool",
+            "name": "createTBA",
+            "type": "bool"
+          }
+        ],
+        "internalType": "struct FactoryLogic.TokenParams",
+        "name": "tokenParams",
+        "type": "tuple"
+      },
+      {
+        "components": [
+          {
+            "internalType": "bool",
+            "name": "isTradeable",
+            "type": "bool"
+          },
+          {
+            "internalType": "uint256",
+            "name": "amountIn",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "maxAmountIn",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "tokensOut",
+            "type": "uint256"
+          },
+          {
+            "components": [
+              {
+                "internalType": "bool",
+                "name": "phase1RoleRequired",
+                "type": "bool"
+              },
+              {
+                "internalType": "bool",
+                "name": "phase2RoleRequired",
+                "type": "bool"
+              },
+              {
+                "internalType": "bool",
+                "name": "phase3RoleRequired",
+                "type": "bool"
+              },
+              {
+                "internalType": "bool",
+                "name": "phase1ParentRoleRequired",
+                "type": "bool"
+              },
+              {
+                "internalType": "bool",
+                "name": "phase2ParentRoleRequired",
+                "type": "bool"
+              },
+              {
+                "internalType": "bool",
+                "name": "phase3ParentRoleRequired",
+                "type": "bool"
+              },
+              {
+                "internalType": "uint40",
+                "name": "phase1TokenLimitPerUser",
+                "type": "uint40"
+              },
+              {
+                "internalType": "uint40",
+                "name": "phase2TokenLimitPerUser",
+                "type": "uint40"
+              },
+              {
+                "internalType": "uint40",
+                "name": "phase3TokenLimitPerUser",
+                "type": "uint40"
+              },
+              {
+                "internalType": "uint32",
+                "name": "startBlock",
+                "type": "uint32"
+              }
+            ],
+            "internalType": "struct FactoryLogic.SaleParams",
+            "name": "saleParams",
+            "type": "tuple"
+          },
+          {
+            "internalType": "uint256",
+            "name": "poolType",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint32[]",
+            "name": "migrationEndpoints",
+            "type": "uint32[]"
+          }
+        ],
+        "internalType": "struct FactoryLogic.TradingParams",
+        "name": "tradingParams",
+        "type": "tuple"
+      },
+      {
+        "internalType": "address",
+        "name": "receiver",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "permitAmount",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "deadline",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint8",
+        "name": "v",
+        "type": "uint8"
+      },
+      {
+        "internalType": "bytes32",
+        "name": "r",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "bytes32",
+        "name": "s",
+        "type": "bytes32"
+      }
+    ],
+    "name": "createTokenWithPaymentPermit",
+    "outputs": [
+      {
+        "components": [
+          {
+            "internalType": "bytes32",
+            "name": "originAddress",
+            "type": "bytes32"
+          },
+          {
+            "internalType": "uint256",
+            "name": "collectibleId",
+            "type": "uint256"
+          },
+          {
+            "internalType": "enum TokenDefs.TokenType",
+            "name": "tokenType",
+            "type": "uint8"
+          },
+          {
+            "internalType": "enum TokenDefs.BlockchainType",
+            "name": "blockchainType",
+            "type": "uint8"
+          },
+          {
+            "internalType": "uint32",
+            "name": "endpointId",
+            "type": "uint32"
+          }
+        ],
+        "internalType": "struct TokenKey",
+        "name": "key",
+        "type": "tuple"
+      },
+      {
+        "components": [
+          {
+            "internalType": "bytes32",
+            "name": "originAddress",
+            "type": "bytes32"
+          },
+          {
+            "internalType": "uint256",
+            "name": "collectibleId",
+            "type": "uint256"
+          },
+          {
+            "internalType": "enum TokenDefs.TokenType",
+            "name": "tokenType",
+            "type": "uint8"
+          },
+          {
+            "internalType": "enum TokenDefs.BlockchainType",
+            "name": "blockchainType",
+            "type": "uint8"
+          },
+          {
+            "internalType": "uint32",
+            "name": "endpointId",
+            "type": "uint32"
+          }
+        ],
+        "internalType": "struct TokenKey",
+        "name": "title",
+        "type": "tuple"
+      },
+      {
+        "internalType": "address",
+        "name": "account",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "TokenId",
+        "name": "",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "address",
+        "name": "signer",
+        "type": "address"
+      }
+    ],
+    "name": "externalWhitelist",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "whitelisted",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "payer",
+        "type": "address"
+      },
+      {
+        "internalType": "bytes32",
+        "name": "activityId",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "address",
+        "name": "builder",
+        "type": "address"
+      }
+    ],
+    "name": "getBuilderFeeStructure",
+    "outputs": [
+      {
+        "components": [
+          {
+            "internalType": "uint16",
+            "name": "feePercent",
+            "type": "uint16"
+          },
+          {
+            "internalType": "uint32",
+            "name": "flatFee",
+            "type": "uint32"
+          }
+        ],
+        "internalType": "struct Fees.BuilderFeeStructure",
+        "name": "",
+        "type": "tuple"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "activityId",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "uint256",
+        "name": "hubId",
+        "type": "uint256"
+      }
+    ],
+    "name": "getFeeStructure",
+    "outputs": [
+      {
+        "components": [
+          {
+            "internalType": "uint32",
+            "name": "protocolFlatFee",
+            "type": "uint32"
+          },
+          {
+            "internalType": "uint16",
+            "name": "protocolFeePercent",
+            "type": "uint16"
+          },
+          {
+            "internalType": "uint16",
+            "name": "hubFeePercent",
+            "type": "uint16"
+          },
+          {
+            "internalType": "uint32",
+            "name": "hubFlatFee",
+            "type": "uint32"
+          }
+        ],
+        "internalType": "struct Fees.FeeStructure",
+        "name": "fees",
+        "type": "tuple"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "account",
+        "type": "address"
+      },
+      {
+        "internalType": "string",
+        "name": "name",
+        "type": "string"
+      }
+    ],
+    "name": "hubAddRoleByName",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "success",
+        "type": "bool"
+      },
+      {
+        "internalType": "uint256",
+        "name": "roleId",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "account",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "user",
+        "type": "address"
+      }
+    ],
+    "name": "hubGetUserRoles",
+    "outputs": [
+      {
+        "internalType": "uint256[]",
+        "name": "",
+        "type": "uint256[]"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "components": [
+          {
+            "internalType": "address",
+            "name": "account",
+            "type": "address"
+          },
+          {
+            "internalType": "string",
+            "name": "roleName",
+            "type": "string"
+          }
+        ],
+        "internalType": "struct RoleKey",
+        "name": "authorityRole",
+        "type": "tuple"
+      },
+      {
+        "internalType": "uint256",
+        "name": "deadline",
+        "type": "uint256"
+      },
+      {
+        "internalType": "address",
+        "name": "user",
+        "type": "address"
+      }
+    ],
+    "name": "hubKickUser",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "success",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "account",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "user",
+        "type": "address"
+      }
+    ],
+    "name": "hubRemoveBan",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "success",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "hubId",
+        "type": "uint256"
+      },
+      {
+        "internalType": "bool",
+        "name": "isPrivate",
+        "type": "bool"
+      }
+    ],
+    "name": "hubTogglePrivacy",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "success",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "_registry",
+        "type": "address"
+      }
+    ],
+    "name": "initialize",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "user",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "builder",
+        "type": "address"
+      },
+      {
+        "internalType": "bytes32",
+        "name": "feeHash",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "bytes32",
+        "name": "activityId",
+        "type": "bytes32"
+      }
+    ],
+    "name": "isFeeApproved",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "approved",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "forwarder",
+        "type": "address"
+      }
+    ],
+    "name": "isTrustedForwarder",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "components": [
+          {
+            "internalType": "bytes32",
+            "name": "originAddress",
+            "type": "bytes32"
+          },
+          {
+            "internalType": "uint256",
+            "name": "collectibleId",
+            "type": "uint256"
+          },
+          {
+            "internalType": "enum TokenDefs.TokenType",
+            "name": "tokenType",
+            "type": "uint8"
+          },
+          {
+            "internalType": "enum TokenDefs.BlockchainType",
+            "name": "blockchainType",
+            "type": "uint8"
+          },
+          {
+            "internalType": "uint32",
+            "name": "endpointId",
+            "type": "uint32"
+          }
+        ],
+        "internalType": "struct TokenKey",
+        "name": "key",
+        "type": "tuple"
+      }
+    ],
+    "name": "joinAccount",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "success",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "components": [
+          {
+            "internalType": "bytes32",
+            "name": "originAddress",
+            "type": "bytes32"
+          },
+          {
+            "internalType": "uint256",
+            "name": "collectibleId",
+            "type": "uint256"
+          },
+          {
+            "internalType": "enum TokenDefs.TokenType",
+            "name": "tokenType",
+            "type": "uint8"
+          },
+          {
+            "internalType": "enum TokenDefs.BlockchainType",
+            "name": "blockchainType",
+            "type": "uint8"
+          },
+          {
+            "internalType": "uint32",
+            "name": "endpointId",
+            "type": "uint32"
+          }
+        ],
+        "internalType": "struct TokenKey",
+        "name": "key",
+        "type": "tuple"
+      },
+      {
+        "internalType": "uint256",
+        "name": "deadline",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint8",
+        "name": "v",
+        "type": "uint8"
+      },
+      {
+        "internalType": "bytes32",
+        "name": "r",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "bytes32",
+        "name": "s",
+        "type": "bytes32"
+      }
+    ],
+    "name": "joinAccountWithPermit",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "success",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "name",
+    "outputs": [
+      {
+        "internalType": "string",
+        "name": "",
+        "type": "string"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "name": "nonces",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "owner",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "paymentToken",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "components": [
+          {
+            "internalType": "bytes32",
+            "name": "originAddress",
+            "type": "bytes32"
+          },
+          {
+            "internalType": "uint256",
+            "name": "collectibleId",
+            "type": "uint256"
+          },
+          {
+            "internalType": "enum TokenDefs.TokenType",
+            "name": "tokenType",
+            "type": "uint8"
+          },
+          {
+            "internalType": "enum TokenDefs.BlockchainType",
+            "name": "blockchainType",
+            "type": "uint8"
+          },
+          {
+            "internalType": "uint32",
+            "name": "endpointId",
+            "type": "uint32"
+          }
+        ],
+        "internalType": "struct TokenKey",
+        "name": "key",
+        "type": "tuple"
+      },
+      {
+        "internalType": "address",
+        "name": "user",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "amount",
+        "type": "uint256"
+      }
+    ],
+    "name": "pointsMint",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "success",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "user",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "id",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "amount",
+        "type": "uint256"
+      }
+    ],
+    "name": "pointsRedeem",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "success",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "registry",
+    "outputs": [
+      {
+        "internalType": "contract IRegistry",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "account",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "user",
+        "type": "address"
+      }
+    ],
+    "name": "rolesGetHeighestRole",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "heighestRoleId",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint8",
+        "name": "orderNo",
+        "type": "uint8"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "components": [
+          {
+            "internalType": "address",
+            "name": "account",
+            "type": "address"
+          },
+          {
+            "internalType": "string",
+            "name": "roleName",
+            "type": "string"
+          }
+        ],
+        "internalType": "struct RoleKey",
+        "name": "key",
+        "type": "tuple"
+      },
+      {
+        "components": [
+          {
+            "internalType": "address",
+            "name": "account",
+            "type": "address"
+          },
+          {
+            "internalType": "string",
+            "name": "roleName",
+            "type": "string"
+          }
+        ],
+        "internalType": "struct RoleKey",
+        "name": "authorityRole",
+        "type": "tuple"
+      },
+      {
+        "internalType": "address",
+        "name": "user",
+        "type": "address"
+      }
+    ],
+    "name": "rolesGrant",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "success",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "components": [
+          {
+            "internalType": "address",
+            "name": "account",
+            "type": "address"
+          },
+          {
+            "internalType": "string",
+            "name": "roleName",
+            "type": "string"
+          }
+        ],
+        "internalType": "struct RoleKey",
+        "name": "key",
+        "type": "tuple"
+      },
+      {
+        "internalType": "address",
+        "name": "user",
+        "type": "address"
+      }
+    ],
+    "name": "rolesHasRole",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "components": [
+          {
+            "internalType": "bytes32",
+            "name": "originAddress",
+            "type": "bytes32"
+          },
+          {
+            "internalType": "uint256",
+            "name": "collectibleId",
+            "type": "uint256"
+          },
+          {
+            "internalType": "enum TokenDefs.TokenType",
+            "name": "tokenType",
+            "type": "uint8"
+          },
+          {
+            "internalType": "enum TokenDefs.BlockchainType",
+            "name": "blockchainType",
+            "type": "uint8"
+          },
+          {
+            "internalType": "uint32",
+            "name": "endpointId",
+            "type": "uint32"
+          }
+        ],
+        "internalType": "struct TokenKey",
+        "name": "key",
+        "type": "tuple"
+      },
+      {
+        "internalType": "address",
+        "name": "user",
+        "type": "address"
+      },
+      {
+        "internalType": "string",
+        "name": "roleName",
+        "type": "string"
+      }
+    ],
+    "name": "rolesHasRoleInParentAccount",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "components": [
+          {
+            "internalType": "address",
+            "name": "account",
+            "type": "address"
+          },
+          {
+            "internalType": "string",
+            "name": "roleName",
+            "type": "string"
+          }
+        ],
+        "internalType": "struct RoleKey",
+        "name": "key",
+        "type": "tuple"
+      }
+    ],
+    "name": "rolesRenounce",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "success",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "components": [
+          {
+            "internalType": "address",
+            "name": "account",
+            "type": "address"
+          },
+          {
+            "internalType": "string",
+            "name": "roleName",
+            "type": "string"
+          }
+        ],
+        "internalType": "struct RoleKey",
+        "name": "key",
+        "type": "tuple"
+      },
+      {
+        "components": [
+          {
+            "internalType": "address",
+            "name": "account",
+            "type": "address"
+          },
+          {
+            "internalType": "string",
+            "name": "roleName",
+            "type": "string"
+          }
+        ],
+        "internalType": "struct RoleKey",
+        "name": "authorityRole",
+        "type": "tuple"
+      },
+      {
+        "internalType": "address",
+        "name": "user",
+        "type": "address"
+      }
+    ],
+    "name": "rolesRevoke",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "success",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "activityId",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "uint256",
+        "name": "feePercent",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "flatFee",
+        "type": "uint256"
+      }
+    ],
+    "name": "setBuilderActivityFee",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "feePercent",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "flatFee",
+        "type": "uint256"
+      }
+    ],
+    "name": "setBuilderGlobalFee",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint32[]",
+        "name": "_peers",
+        "type": "uint32[]"
+      }
+    ],
+    "name": "setLzPeers",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "builder",
+        "type": "address"
+      },
+      {
+        "internalType": "bytes32",
+        "name": "activityId",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "uint256",
+        "name": "feePercent",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "flatFee",
+        "type": "uint256"
+      },
+      {
+        "internalType": "bool",
+        "name": "approved",
+        "type": "bool"
+      }
+    ],
+    "name": "toggleActivityBuilderFee",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "components": [
+          {
+            "internalType": "bytes32",
+            "name": "originAddress",
+            "type": "bytes32"
+          },
+          {
+            "internalType": "uint256",
+            "name": "collectibleId",
+            "type": "uint256"
+          },
+          {
+            "internalType": "enum TokenDefs.TokenType",
+            "name": "tokenType",
+            "type": "uint8"
+          },
+          {
+            "internalType": "enum TokenDefs.BlockchainType",
+            "name": "blockchainType",
+            "type": "uint8"
+          },
+          {
+            "internalType": "uint32",
+            "name": "endpointId",
+            "type": "uint32"
+          }
+        ],
+        "internalType": "struct TokenKey",
+        "name": "key",
+        "type": "tuple"
+      },
+      {
+        "internalType": "address",
+        "name": "signer",
+        "type": "address"
+      },
+      {
+        "internalType": "bool",
+        "name": "_whitelist",
+        "type": "bool"
+      }
+    ],
+    "name": "toggleExternalWhitelist",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "builder",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "feePercent",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "flatFee",
+        "type": "uint256"
+      },
+      {
+        "internalType": "bool",
+        "name": "approved",
+        "type": "bool"
+      }
+    ],
+    "name": "toggleGlobalBuilderFeeApproval",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "newOwner",
+        "type": "address"
+      }
+    ],
+    "name": "transferOwnership",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "trustedForwarder",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "withdrawAllETH",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "amount",
+        "type": "uint256"
+      }
+    ],
+    "name": "withdrawETH",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "builder",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "bytes32",
+        "name": "activityId",
+        "type": "bytes32"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "feePercent",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "flatFee",
+        "type": "uint256"
+      }
+    ],
+    "name": "BuilderActivityFeeSet",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "TokenId",
+        "name": "tokenId",
+        "type": "bytes32"
+      },
+      {
+        "indexed": false,
+        "internalType": "address",
+        "name": "signer",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "bool",
+        "name": "status",
+        "type": "bool"
+      }
+    ],
+    "name": "ExternalWhitelistChanged",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "hubId",
+        "type": "uint256"
+      },
+      {
+        "indexed": true,
+        "internalType": "bytes32",
+        "name": "activityId",
+        "type": "bytes32"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "contractAddress",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "address",
+        "name": "sender",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "protocolAmount",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "hubAmount",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "address",
+        "name": "builder",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "builderAmount",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "address",
+        "name": "paymentToken",
+        "type": "address"
+      }
+    ],
+    "name": "FeesPaid",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "uint64",
+        "name": "version",
+        "type": "uint64"
+      }
+    ],
+    "name": "Initialized",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "user",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "newOwner",
+        "type": "address"
+      }
+    ],
+    "name": "OwnershipTransferred",
+    "type": "event"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "builder",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "payer",
+        "type": "address"
+      },
+      {
+        "internalType": "bytes32",
+        "name": "activityId",
+        "type": "bytes32"
+      }
+    ],
+    "name": "BuilderFeeNotApprovedOrSet",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "IPUnauthorizedNotIPOwner",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidInitialization",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "NotImplemented",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "NotInitializing",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "UnauthorizedNotHubOwner",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "string",
+        "name": "roleName",
+        "type": "string"
+      }
+    ],
+    "name": "UnauthorizedNotIPOwnerOrRoleOwner",
+    "type": "error"
+  }
+]

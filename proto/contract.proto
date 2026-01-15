@@ -1,0 +1,1300 @@
+syntax = "proto3";
+
+import "google/protobuf/timestamp.proto";
+
+package contract.v1;
+message Events {
+    repeated Registry_AdapterDeployed registry_adapter_deployeds = 1;
+    repeated Registry_AdapterTemplateReset registry_adapter_template_resets = 2;
+    repeated Registry_AdapterTemplateSet registry_adapter_template_sets = 3;
+    repeated Registry_BuilderFeesApproved registry_builder_fees_approveds = 4;
+    repeated Registry_CoinCreated registry_coin_createds = 5;
+    repeated Registry_ContractAddressOverwritten registry_contract_address_overwrittens = 6;
+    repeated Registry_ContractDeployed registry_contract_deployeds = 7;
+    repeated Registry_ExternalTokenCreated registry_external_token_createds = 8;
+    repeated Registry_HubCreated registry_hub_createds = 9;
+    repeated Registry_HubsAddressChanged registry_hubs_address_changeds = 10;
+    repeated Registry_Initialized registry_initializeds = 11;
+    repeated Registry_ItemCreated registry_item_createds = 12;
+    repeated Registry_ItemsAddressChanged registry_items_address_changeds = 13;
+    repeated Registry_LaunchpadAddressChanged registry_launchpad_address_changeds = 14;
+    repeated Registry_LiquidityManagerAddressChanged registry_liquidity_manager_address_changeds = 15;
+    repeated Registry_LiquidityMigratorAddressChanged registry_liquidity_migrator_address_changeds = 16;
+    repeated Registry_ManagerUpdated registry_manager_updateds = 17;
+    repeated Registry_OAppConfigured registry_o_app_configureds = 18;
+    repeated Registry_OwnershipTransferred registry_ownership_transferreds = 19;
+    repeated Registry_PeerSet registry_peer_sets = 20;
+    repeated Registry_PointsCreated registry_points_createds = 21;
+    repeated Registry_ProtocolBonusConfigSet registry_protocol_bonus_config_sets = 22;
+    repeated Registry_ProtocolFeeSet registry_protocol_fee_sets = 23;
+    repeated Registry_ProtocolLimitSet registry_protocol_limit_sets = 24;
+    repeated Registry_ReferralSet registry_referral_sets = 25;
+    repeated Registry_ReferralStatusUpdated registry_referral_status_updateds = 26;
+    repeated Registry_ReferralsControllerUpdated registry_referrals_controller_updateds = 27;
+    repeated Registry_RegistryInitialized registry_registry_initializeds = 28;
+    repeated Registry_TokenCreated registry_token_createds = 29;
+    repeated Registry_TokenRegistered registry_token_registereds = 30;
+    repeated Registry_TokenTemplateReset registry_token_template_resets = 31;
+    repeated Registry_TokenTemplateSet registry_token_template_sets = 32;
+    repeated Registry_WhitelistToggled registry_whitelist_toggleds = 33;
+    repeated Oapp_EthWithdrawn oapp_eth_withdrawns = 34;
+    repeated Oapp_EnforcedOptionSet oapp_enforced_option_sets = 35;
+    repeated Oapp_MessageReceived oapp_message_receiveds = 36;
+    repeated Oapp_OperationCreated oapp_operation_createds = 37;
+    repeated Oapp_OwnershipTransferred oapp_ownership_transferreds = 38;
+    repeated Oapp_PeerSet oapp_peer_sets = 39;
+    repeated Oapp_SolanaLiquidityManagerSet oapp_solana_liquidity_manager_sets = 40;
+    repeated Oapp_TokenLiquidityInitializedExternally oapp_token_liquidity_initialized_externallies = 41;
+    repeated Oapp_TokenRegisteredExternally oapp_token_registered_externallies = 42;
+    repeated Oapp_TokenRegistrationAck oapp_token_registration_acks = 43;
+    repeated Oapp_TokenRegistrationAckProcessed oapp_token_registration_ack_processeds = 44;
+    repeated Oapp_TokenRegistrationAckSent oapp_token_registration_ack_sents = 45;
+    repeated Oapp_TokenRegistrationInitiated oapp_token_registration_initiateds = 46;
+    repeated Oapp_TokenRegistrationReceived oapp_token_registration_receiveds = 47;
+    repeated Manager_BuilderActivityFeeSet manager_builder_activity_fee_sets = 48;
+    repeated Manager_ExternalWhitelistChanged manager_external_whitelist_changeds = 49;
+    repeated Manager_FeesPaid manager_fees_paids = 50;
+    repeated Manager_Initialized manager_initializeds = 51;
+    repeated Manager_OwnershipTransferred manager_ownership_transferreds = 52;
+    repeated Launchpad_Buy launchpad_buys = 53;
+    repeated Launchpad_NewPoolType launchpad_new_pool_types = 54;
+    repeated Launchpad_OwnershipTransferred launchpad_ownership_transferreds = 55;
+    repeated Launchpad_PhaseExpiryConfigSet launchpad_phase_expiry_config_sets = 56;
+    repeated Launchpad_Sell launchpad_sells = 57;
+    repeated Ip_Approval ip_approvals = 58;
+    repeated Ip_ApprovalForAll ip_approval_for_alls = 59;
+    repeated Ip_ManagerChanged ip_manager_changeds = 60;
+    repeated Ip_Transfer ip_transfers = 61;
+    repeated LiquidityMananager_FeesCollected liquidity_mananager_fees_collecteds = 62;
+    repeated LiquidityMananager_FeesDistributed liquidity_mananager_fees_distributeds = 63;
+    repeated LiquidityMananager_InitialPositionMinted liquidity_mananager_initial_position_minteds = 64;
+    repeated LiquidityMananager_Initialized liquidity_mananager_initializeds = 65;
+    repeated LiquidityMananager_LiquidityIncreased liquidity_mananager_liquidity_increaseds = 66;
+    repeated LiquidityMananager_LiquidityManagerInitialized liquidity_mananager_liquidity_manager_initializeds = 67;
+    repeated LiquidityMananager_LiquidityManagerUpgraded liquidity_mananager_liquidity_manager_upgradeds = 68;
+    repeated LiquidityMananager_LiquidityMigrated liquidity_mananager_liquidity_migrateds = 69;
+    repeated LiquidityMananager_NewDeposit liquidity_mananager_new_deposits = 70;
+    repeated LiquidityMananager_OwnershipTransferred liquidity_mananager_ownership_transferreds = 71;
+    repeated LiquidityMananager_PoolCreated liquidity_mananager_pool_createds = 72;
+    repeated LiquidityMananager_PositionCreatedViaCompose liquidity_mananager_position_created_via_composes = 73;
+    repeated LiquidityMananager_Upgraded liquidity_mananager_upgradeds = 74;
+    repeated Fees_FeeDistributed fees_fee_distributeds = 75;
+    repeated Fees_ProtocolFeeDistributed fees_protocol_fee_distributeds = 76;
+    repeated Fees_ProtocolFeesControllerUpdated fees_protocol_fees_controller_updateds = 77;
+    repeated Fees_ProtocolWithdrawn fees_protocol_withdrawns = 78;
+    repeated Fees_Withdrawn fees_withdrawns = 79;
+    repeated Roles_Approval roles_approvals = 80;
+    repeated Roles_BanRemoved roles_ban_removeds = 81;
+    repeated Roles_ManagerChanged roles_manager_changeds = 82;
+    repeated Roles_OwnershipTransferred roles_ownership_transferreds = 83;
+    repeated Roles_RoleAdded roles_role_addeds = 84;
+    repeated Roles_RoleCreated roles_role_createds = 85;
+    repeated Roles_RoleGranted roles_role_granteds = 86;
+    repeated Roles_RoleOrderUpdated roles_role_order_updateds = 87;
+    repeated Roles_RoleRemoved roles_role_removeds = 88;
+    repeated Roles_RoleRenounced roles_role_renounceds = 89;
+    repeated Roles_RoleRevoked roles_role_revokeds = 90;
+    repeated Roles_Transfer roles_transfers = 91;
+    repeated Roles_UserKicked roles_user_kickeds = 92;
+    repeated TokenCoin_Approval token_coin_approvals = 93;
+    repeated TokenCoin_EnforcedOptionSet token_coin_enforced_option_sets = 94;
+    repeated TokenCoin_Initialized token_coin_initializeds = 95;
+    repeated TokenCoin_MsgInspectorSet token_coin_msg_inspector_sets = 96;
+    repeated TokenCoin_OftReceived token_coin_oft_receiveds = 97;
+    repeated TokenCoin_OftSent token_coin_oft_sents = 98;
+    repeated TokenCoin_OwnershipTransferred token_coin_ownership_transferreds = 99;
+    repeated TokenCoin_PeerSet token_coin_peer_sets = 100;
+    repeated TokenCoin_PreCrimeSet token_coin_pre_crime_sets = 101;
+    repeated TokenCoin_Transfer token_coin_transfers = 102;
+}
+message Registry_AdapterDeployed {
+    string evt_tx_hash = 1;
+    uint32 evt_index = 2;
+    google.protobuf.Timestamp evt_block_time = 3;
+    uint64 evt_block_number = 4;
+    bytes adapter = 5;
+    bytes external_token = 6;
+    bytes wrapped_token = 7;
+    uint64 adapter_type = 8;
+}
+message Registry_AdapterTemplateReset {
+    string evt_tx_hash = 1;
+    uint32 evt_index = 2;
+    google.protobuf.Timestamp evt_block_time = 3;
+    uint64 evt_block_number = 4;
+    bytes template_id = 5;
+}
+message Registry_AdapterTemplateSet {
+    string evt_tx_hash = 1;
+    uint32 evt_index = 2;
+    google.protobuf.Timestamp evt_block_time = 3;
+    uint64 evt_block_number = 4;
+    bytes template_id = 5;
+    uint64 adapter_type = 6;
+    bytes implementation_address = 7;
+}
+message Registry_BuilderFeesApproved {
+    string evt_tx_hash = 1;
+    uint32 evt_index = 2;
+    google.protobuf.Timestamp evt_block_time = 3;
+    uint64 evt_block_number = 4;
+    bytes user = 5;
+    bytes builder = 6;
+}
+message Registry_CoinCreated {
+    string evt_tx_hash = 1;
+    uint32 evt_index = 2;
+    google.protobuf.Timestamp evt_block_time = 3;
+    uint64 evt_block_number = 4;
+    bytes coin_address = 5;
+    string hub_id = 6;
+    string name = 7;
+    string symbol = 8;
+    uint64 decimals = 9;
+    string token_uri = 10;
+    string total_supply = 11;
+}
+message Registry_ContractAddressOverwritten {
+    string evt_tx_hash = 1;
+    uint32 evt_index = 2;
+    google.protobuf.Timestamp evt_block_time = 3;
+    uint64 evt_block_number = 4;
+    bytes identifier = 5;
+    bytes old_address = 6;
+    bytes new_address = 7;
+}
+message Registry_ContractDeployed {
+    string evt_tx_hash = 1;
+    uint32 evt_index = 2;
+    google.protobuf.Timestamp evt_block_time = 3;
+    uint64 evt_block_number = 4;
+    bytes name = 5;
+    bytes contract_address = 6;
+    bytes salt = 7;
+}
+message Registry_ExternalTokenCreated {
+    string evt_tx_hash = 1;
+    uint32 evt_index = 2;
+    google.protobuf.Timestamp evt_block_time = 3;
+    uint64 evt_block_number = 4;
+    bytes token_id = 5;
+    bytes token_address = 6;
+    bytes adapter = 7;
+    bytes external_token = 8;
+    string name = 9;
+    string symbol = 10;
+    uint64 adapter_type = 11;
+}
+message Registry_HubCreated {
+    string evt_tx_hash = 1;
+    uint32 evt_index = 2;
+    google.protobuf.Timestamp evt_block_time = 3;
+    uint64 evt_block_number = 4;
+    string id = 5;
+    bytes creator = 6;
+    bytes receiver = 7;
+    bool is_private = 8;
+}
+message Registry_HubsAddressChanged {
+    string evt_tx_hash = 1;
+    uint32 evt_index = 2;
+    google.protobuf.Timestamp evt_block_time = 3;
+    uint64 evt_block_number = 4;
+    bytes new_address = 5;
+}
+message Registry_Initialized {
+    string evt_tx_hash = 1;
+    uint32 evt_index = 2;
+    google.protobuf.Timestamp evt_block_time = 3;
+    uint64 evt_block_number = 4;
+    uint64 version = 5;
+}
+message Registry_ItemCreated {
+    string evt_tx_hash = 1;
+    uint32 evt_index = 2;
+    google.protobuf.Timestamp evt_block_time = 3;
+    uint64 evt_block_number = 4;
+    string id = 5;
+    string hub_id = 6;
+    bytes symbol = 7;
+    string name = 8;
+    string token_uri = 9;
+    uint64 decimals = 10;
+    string pool_type = 11;
+}
+message Registry_ItemsAddressChanged {
+    string evt_tx_hash = 1;
+    uint32 evt_index = 2;
+    google.protobuf.Timestamp evt_block_time = 3;
+    uint64 evt_block_number = 4;
+    bytes new_address = 5;
+}
+message Registry_LaunchpadAddressChanged {
+    string evt_tx_hash = 1;
+    uint32 evt_index = 2;
+    google.protobuf.Timestamp evt_block_time = 3;
+    uint64 evt_block_number = 4;
+    bytes new_address = 5;
+}
+message Registry_LiquidityManagerAddressChanged {
+    string evt_tx_hash = 1;
+    uint32 evt_index = 2;
+    google.protobuf.Timestamp evt_block_time = 3;
+    uint64 evt_block_number = 4;
+    bytes new_address = 5;
+}
+message Registry_LiquidityMigratorAddressChanged {
+    string evt_tx_hash = 1;
+    uint32 evt_index = 2;
+    google.protobuf.Timestamp evt_block_time = 3;
+    uint64 evt_block_number = 4;
+    bytes new_address = 5;
+}
+message Registry_ManagerUpdated {
+    string evt_tx_hash = 1;
+    uint32 evt_index = 2;
+    google.protobuf.Timestamp evt_block_time = 3;
+    uint64 evt_block_number = 4;
+    bytes manager = 5;
+    bool authorized = 6;
+}
+message Registry_OAppConfigured {
+    string evt_tx_hash = 1;
+    uint32 evt_index = 2;
+    google.protobuf.Timestamp evt_block_time = 3;
+    uint64 evt_block_number = 4;
+    uint64 endpoint_id = 5;
+    bytes token_id = 6;
+    bytes token_address = 7;
+    bytes send_library = 8;
+    bytes receive_library = 9;
+}
+message Registry_OwnershipTransferred {
+    string evt_tx_hash = 1;
+    uint32 evt_index = 2;
+    google.protobuf.Timestamp evt_block_time = 3;
+    uint64 evt_block_number = 4;
+    bytes user = 5;
+    bytes new_owner = 6;
+}
+message Registry_PeerSet {
+    string evt_tx_hash = 1;
+    uint32 evt_index = 2;
+    google.protobuf.Timestamp evt_block_time = 3;
+    uint64 evt_block_number = 4;
+    uint64 endpoint_id = 5;
+    bytes token_id = 6;
+    bytes token_address = 7;
+    bytes peer_address = 8;
+}
+message Registry_PointsCreated {
+    string evt_tx_hash = 1;
+    uint32 evt_index = 2;
+    google.protobuf.Timestamp evt_block_time = 3;
+    uint64 evt_block_number = 4;
+    string id = 5;
+    string hub_id = 6;
+    string name = 7;
+    string symbol = 8;
+    string uri = 9;
+    bool soulbound = 10;
+}
+message Registry_ProtocolBonusConfigSet {
+    string evt_tx_hash = 1;
+    uint32 evt_index = 2;
+    google.protobuf.Timestamp evt_block_time = 3;
+    uint64 evt_block_number = 4;
+    uint64 duration_blocks = 5;
+    uint64 start_percentage_bps = 6;
+}
+message Registry_ProtocolFeeSet {
+    string evt_tx_hash = 1;
+    uint32 evt_index = 2;
+    google.protobuf.Timestamp evt_block_time = 3;
+    uint64 evt_block_number = 4;
+    uint64 activity = 5;
+    uint64 fee_bps = 6;
+}
+message Registry_ProtocolLimitSet {
+    string evt_tx_hash = 1;
+    uint32 evt_index = 2;
+    google.protobuf.Timestamp evt_block_time = 3;
+    uint64 evt_block_number = 4;
+    uint64 activity = 5;
+    uint64 max_fee_bps = 6;
+}
+message Registry_ReferralSet {
+    string evt_tx_hash = 1;
+    uint32 evt_index = 2;
+    google.protobuf.Timestamp evt_block_time = 3;
+    uint64 evt_block_number = 4;
+    bytes referee = 5;
+    bytes referrer = 6;
+    bool reward_active = 7;
+    bool discount_active = 8;
+}
+message Registry_ReferralStatusUpdated {
+    string evt_tx_hash = 1;
+    uint32 evt_index = 2;
+    google.protobuf.Timestamp evt_block_time = 3;
+    uint64 evt_block_number = 4;
+    bytes referee = 5;
+    bool reward_active = 6;
+    bool discount_active = 7;
+}
+message Registry_ReferralsControllerUpdated {
+    string evt_tx_hash = 1;
+    uint32 evt_index = 2;
+    google.protobuf.Timestamp evt_block_time = 3;
+    uint64 evt_block_number = 4;
+    bytes old_controller = 5;
+    bytes new_controller = 6;
+}
+message Registry_RegistryInitialized {
+    string evt_tx_hash = 1;
+    uint32 evt_index = 2;
+    google.protobuf.Timestamp evt_block_time = 3;
+    uint64 evt_block_number = 4;
+    bytes owner = 5;
+    bytes trusted_forwarder = 6;
+    bytes payment_token = 7;
+    bytes protocol_fee_to = 8;
+    bytes endpoint = 9;
+    bytes swap_router = 10;
+}
+message Registry_TokenCreated {
+    string evt_tx_hash = 1;
+    uint32 evt_index = 2;
+    google.protobuf.Timestamp evt_block_time = 3;
+    uint64 evt_block_number = 4;
+    bytes token_address = 5;
+    string token_id = 6;
+    string hub_id = 7;
+    string symbol = 8;
+    string name = 9;
+    string token_uri = 10;
+    uint64 decimals = 11;
+}
+message Registry_TokenRegistered {
+    string evt_tx_hash = 1;
+    uint32 evt_index = 2;
+    google.protobuf.Timestamp evt_block_time = 3;
+    uint64 evt_block_number = 4;
+    bytes token_id = 5;
+    bytes token_address = 6;
+    bytes template_id = 7;
+    string name = 8;
+    string symbol = 9;
+}
+message Registry_TokenTemplateReset {
+    string evt_tx_hash = 1;
+    uint32 evt_index = 2;
+    google.protobuf.Timestamp evt_block_time = 3;
+    uint64 evt_block_number = 4;
+    bytes template_id = 5;
+}
+message Registry_TokenTemplateSet {
+    string evt_tx_hash = 1;
+    uint32 evt_index = 2;
+    google.protobuf.Timestamp evt_block_time = 3;
+    uint64 evt_block_number = 4;
+    bytes template_id = 5;
+    uint64 token_type = 6;
+    bytes implementation_address = 7;
+    string total_supply = 8;
+}
+message Registry_WhitelistToggled {
+    string evt_tx_hash = 1;
+    uint32 evt_index = 2;
+    google.protobuf.Timestamp evt_block_time = 3;
+    uint64 evt_block_number = 4;
+    bytes contract_address = 5;
+    bool whitelisted = 6;
+}
+  
+message Oapp_EthWithdrawn {
+    string evt_tx_hash = 1;
+    uint32 evt_index = 2;
+    google.protobuf.Timestamp evt_block_time = 3;
+    uint64 evt_block_number = 4;
+    bytes owner = 5;
+    string amount = 6;
+}
+message Oapp_EnforcedOptionSet {
+    string evt_tx_hash = 1;
+    uint32 evt_index = 2;
+    google.protobuf.Timestamp evt_block_time = 3;
+    uint64 evt_block_number = 4;
+}
+message Oapp_MessageReceived {
+    string evt_tx_hash = 1;
+    uint32 evt_index = 2;
+    google.protobuf.Timestamp evt_block_time = 3;
+    uint64 evt_block_number = 4;
+    bytes guid = 5;
+    uint64 src_eid = 6;
+    uint64 msg_type = 7;
+}
+message Oapp_OperationCreated {
+    string evt_tx_hash = 1;
+    uint32 evt_index = 2;
+    google.protobuf.Timestamp evt_block_time = 3;
+    uint64 evt_block_number = 4;
+    uint64 operation_id = 5;
+    bytes token_id = 6;
+    uint64 dst_eid = 7;
+    uint64 operation_type = 8;
+    string amount = 9;
+}
+message Oapp_OwnershipTransferred {
+    string evt_tx_hash = 1;
+    uint32 evt_index = 2;
+    google.protobuf.Timestamp evt_block_time = 3;
+    uint64 evt_block_number = 4;
+    bytes user = 5;
+    bytes new_owner = 6;
+}
+message Oapp_PeerSet {
+    string evt_tx_hash = 1;
+    uint32 evt_index = 2;
+    google.protobuf.Timestamp evt_block_time = 3;
+    uint64 evt_block_number = 4;
+    uint64 eid = 5;
+    bytes peer = 6;
+}
+message Oapp_SolanaLiquidityManagerSet {
+    string evt_tx_hash = 1;
+    uint32 evt_index = 2;
+    google.protobuf.Timestamp evt_block_time = 3;
+    uint64 evt_block_number = 4;
+    bytes liquidity_manager = 5;
+}
+message Oapp_TokenLiquidityInitializedExternally {
+    string evt_tx_hash = 1;
+    uint32 evt_index = 2;
+    google.protobuf.Timestamp evt_block_time = 3;
+    uint64 evt_block_number = 4;
+    bytes token_id = 5;
+    uint64 src_eid = 6;
+    uint64 dst_eid = 7;
+    string amount = 8;
+    string price_in_wei = 9;
+}
+message Oapp_TokenRegisteredExternally {
+    string evt_tx_hash = 1;
+    uint32 evt_index = 2;
+    google.protobuf.Timestamp evt_block_time = 3;
+    uint64 evt_block_number = 4;
+    bytes token_id = 5;
+    uint64 src_eid = 6;
+    uint64 dst_eid = 7;
+    uint64 operation_id = 8;
+}
+message Oapp_TokenRegistrationAck {
+    string evt_tx_hash = 1;
+    uint32 evt_index = 2;
+    google.protobuf.Timestamp evt_block_time = 3;
+    uint64 evt_block_number = 4;
+    bytes guid = 5;
+    bool success = 6;
+}
+message Oapp_TokenRegistrationAckProcessed {
+    string evt_tx_hash = 1;
+    uint32 evt_index = 2;
+    google.protobuf.Timestamp evt_block_time = 3;
+    uint64 evt_block_number = 4;
+    bytes token_id = 5;
+    uint64 src_eid = 6;
+    uint64 dst_eid = 7;
+    bool success = 8;
+    bytes remote_token_address = 9;
+    uint64 operation_id = 10;
+}
+message Oapp_TokenRegistrationAckSent {
+    string evt_tx_hash = 1;
+    uint32 evt_index = 2;
+    google.protobuf.Timestamp evt_block_time = 3;
+    uint64 evt_block_number = 4;
+    bytes token_id = 5;
+    uint64 dst_eid = 6;
+    bool success = 7;
+    uint64 operation_id = 8;
+}
+message Oapp_TokenRegistrationInitiated {
+    string evt_tx_hash = 1;
+    uint32 evt_index = 2;
+    google.protobuf.Timestamp evt_block_time = 3;
+    uint64 evt_block_number = 4;
+    bytes token_id = 5;
+    uint64 dst_eid = 6;
+    uint64 operation_id = 7;
+}
+message Oapp_TokenRegistrationReceived {
+    string evt_tx_hash = 1;
+    uint32 evt_index = 2;
+    google.protobuf.Timestamp evt_block_time = 3;
+    uint64 evt_block_number = 4;
+    bytes token_id = 5;
+    uint64 src_eid = 6;
+    bytes source_token_address = 7;
+    uint64 operation_id = 8;
+}
+  
+message Manager_BuilderActivityFeeSet {
+    string evt_tx_hash = 1;
+    uint32 evt_index = 2;
+    google.protobuf.Timestamp evt_block_time = 3;
+    uint64 evt_block_number = 4;
+    bytes builder = 5;
+    bytes activity_id = 6;
+    string fee_percent = 7;
+    string flat_fee = 8;
+}
+message Manager_ExternalWhitelistChanged {
+    string evt_tx_hash = 1;
+    uint32 evt_index = 2;
+    google.protobuf.Timestamp evt_block_time = 3;
+    uint64 evt_block_number = 4;
+    bytes token_id = 5;
+    bytes signer = 6;
+    bool status = 7;
+}
+message Manager_FeesPaid {
+    string evt_tx_hash = 1;
+    uint32 evt_index = 2;
+    google.protobuf.Timestamp evt_block_time = 3;
+    uint64 evt_block_number = 4;
+    string hub_id = 5;
+    bytes activity_id = 6;
+    bytes contract_address = 7;
+    bytes sender = 8;
+    string protocol_amount = 9;
+    string hub_amount = 10;
+    bytes builder = 11;
+    string builder_amount = 12;
+    bytes payment_token = 13;
+}
+message Manager_Initialized {
+    string evt_tx_hash = 1;
+    uint32 evt_index = 2;
+    google.protobuf.Timestamp evt_block_time = 3;
+    uint64 evt_block_number = 4;
+    uint64 version = 5;
+}
+message Manager_OwnershipTransferred {
+    string evt_tx_hash = 1;
+    uint32 evt_index = 2;
+    google.protobuf.Timestamp evt_block_time = 3;
+    uint64 evt_block_number = 4;
+    bytes user = 5;
+    bytes new_owner = 6;
+}
+  
+message Launchpad_Buy {
+    string evt_tx_hash = 1;
+    uint32 evt_index = 2;
+    google.protobuf.Timestamp evt_block_time = 3;
+    uint64 evt_block_number = 4;
+    bytes token_id = 5;
+    bytes trader = 6;
+    bytes receiver = 7;
+    string amount_in = 8;
+    string tokens_out = 9;
+    string price = 10;
+    string liquidity_wei = 11;
+    string supply = 12;
+    string tokens_left = 13;
+}
+message Launchpad_NewPoolType {
+    string evt_tx_hash = 1;
+    uint32 evt_index = 2;
+    google.protobuf.Timestamp evt_block_time = 3;
+    uint64 evt_block_number = 4;
+    string pool_type_id = 5;
+    string migration_supply = 6;
+    string price_at_migration_supply = 7;
+    string initial_token_deposit_wad = 8;
+    string initial_reserve_deposit_wad = 9;
+    string creator_reward = 10;
+    string migration_reserve_supply = 11;
+    string migration_token_supply = 12;
+    uint64 weight = 13;
+}
+message Launchpad_OwnershipTransferred {
+    string evt_tx_hash = 1;
+    uint32 evt_index = 2;
+    google.protobuf.Timestamp evt_block_time = 3;
+    uint64 evt_block_number = 4;
+    bytes user = 5;
+    bytes new_owner = 6;
+}
+message Launchpad_PhaseExpiryConfigSet {
+    string evt_tx_hash = 1;
+    uint32 evt_index = 2;
+    google.protobuf.Timestamp evt_block_time = 3;
+    uint64 evt_block_number = 4;
+    uint64 phase1_expiry_blocks = 5;
+    uint64 phase2_expiry_blocks = 6;
+}
+message Launchpad_Sell {
+    string evt_tx_hash = 1;
+    uint32 evt_index = 2;
+    google.protobuf.Timestamp evt_block_time = 3;
+    uint64 evt_block_number = 4;
+    bytes token_id = 5;
+    bytes trader = 6;
+    string tokens_in = 7;
+    string amount_out = 8;
+    string price = 9;
+    string liquidity_wei = 10;
+    string supply = 11;
+    string tokens_left = 12;
+}
+  
+message Ip_Approval {
+    string evt_tx_hash = 1;
+    uint32 evt_index = 2;
+    google.protobuf.Timestamp evt_block_time = 3;
+    uint64 evt_block_number = 4;
+    bytes owner = 5;
+    bytes spender = 6;
+    string id = 7;
+}
+message Ip_ApprovalForAll {
+    string evt_tx_hash = 1;
+    uint32 evt_index = 2;
+    google.protobuf.Timestamp evt_block_time = 3;
+    uint64 evt_block_number = 4;
+    bytes owner = 5;
+    bytes operator = 6;
+    bool approved = 7;
+}
+message Ip_ManagerChanged {
+    string evt_tx_hash = 1;
+    uint32 evt_index = 2;
+    google.protobuf.Timestamp evt_block_time = 3;
+    uint64 evt_block_number = 4;
+    bytes new_manager = 5;
+}
+message Ip_Transfer {
+    string evt_tx_hash = 1;
+    uint32 evt_index = 2;
+    google.protobuf.Timestamp evt_block_time = 3;
+    uint64 evt_block_number = 4;
+    bytes from = 5;
+    bytes to = 6;
+    string id = 7;
+}
+  
+message LiquidityMananager_FeesCollected {
+    string evt_tx_hash = 1;
+    uint32 evt_index = 2;
+    google.protobuf.Timestamp evt_block_time = 3;
+    uint64 evt_block_number = 4;
+    bytes key_id = 5;
+    string token_id = 6;
+    string amount0 = 7;
+    string amount1 = 8;
+}
+message LiquidityMananager_FeesDistributed {
+    string evt_tx_hash = 1;
+    uint32 evt_index = 2;
+    google.protobuf.Timestamp evt_block_time = 3;
+    uint64 evt_block_number = 4;
+    bytes key_id = 5;
+    string token_id = 6;
+    bytes token0 = 7;
+    bytes token1 = 8;
+    bytes owner = 9;
+    string amount0_owner = 10;
+    string amount1_owner = 11;
+    bytes protocol_fee_to = 12;
+    string amount0_protocol = 13;
+    string amount1_protocol = 14;
+}
+message LiquidityMananager_InitialPositionMinted {
+    string evt_tx_hash = 1;
+    uint32 evt_index = 2;
+    google.protobuf.Timestamp evt_block_time = 3;
+    uint64 evt_block_number = 4;
+    string token_id = 5;
+    bytes key_id = 6;
+    bytes token0 = 7;
+    bytes token1 = 8;
+    string liquidity = 9;
+    string amount0 = 10;
+    string amount1 = 11;
+    int64 tick_lower = 12;
+    int64 tick_upper = 13;
+}
+message LiquidityMananager_Initialized {
+    string evt_tx_hash = 1;
+    uint32 evt_index = 2;
+    google.protobuf.Timestamp evt_block_time = 3;
+    uint64 evt_block_number = 4;
+    uint64 version = 5;
+}
+message LiquidityMananager_LiquidityIncreased {
+    string evt_tx_hash = 1;
+    uint32 evt_index = 2;
+    google.protobuf.Timestamp evt_block_time = 3;
+    uint64 evt_block_number = 4;
+    string token_id = 5;
+    string liquidity_added = 6;
+    string amount0 = 7;
+    string amount1 = 8;
+}
+message LiquidityMananager_LiquidityManagerInitialized {
+    string evt_tx_hash = 1;
+    uint32 evt_index = 2;
+    google.protobuf.Timestamp evt_block_time = 3;
+    uint64 evt_block_number = 4;
+    bytes nonfungible_position_manager = 5;
+    bytes registry = 6;
+    bytes owner = 7;
+}
+message LiquidityMananager_LiquidityManagerUpgraded {
+    string evt_tx_hash = 1;
+    uint32 evt_index = 2;
+    google.protobuf.Timestamp evt_block_time = 3;
+    uint64 evt_block_number = 4;
+    bytes old_implementation = 5;
+    bytes new_implementation = 6;
+}
+message LiquidityMananager_LiquidityMigrated {
+    string evt_tx_hash = 1;
+    uint32 evt_index = 2;
+    google.protobuf.Timestamp evt_block_time = 3;
+    uint64 evt_block_number = 4;
+    string token_id = 5;
+    string liquidity = 6;
+    uint64 fee = 7;
+    bytes destination_chain = 8;
+    bool is_default = 9;
+}
+message LiquidityMananager_NewDeposit {
+    string evt_tx_hash = 1;
+    uint32 evt_index = 2;
+    google.protobuf.Timestamp evt_block_time = 3;
+    uint64 evt_block_number = 4;
+    string token_id = 5;
+    string liquidity = 6;
+    bytes token0 = 7;
+    bytes token1 = 8;
+}
+message LiquidityMananager_OwnershipTransferred {
+    string evt_tx_hash = 1;
+    uint32 evt_index = 2;
+    google.protobuf.Timestamp evt_block_time = 3;
+    uint64 evt_block_number = 4;
+    bytes previous_owner = 5;
+    bytes new_owner = 6;
+}
+message LiquidityMananager_PoolCreated {
+    string evt_tx_hash = 1;
+    uint32 evt_index = 2;
+    google.protobuf.Timestamp evt_block_time = 3;
+    uint64 evt_block_number = 4;
+    bytes token0 = 5;
+    bytes token1 = 6;
+    uint64 fee = 7;
+    string sqrt_price_x96 = 8;
+    bytes pool = 9;
+}
+message LiquidityMananager_PositionCreatedViaCompose {
+    string evt_tx_hash = 1;
+    uint32 evt_index = 2;
+    google.protobuf.Timestamp evt_block_time = 3;
+    uint64 evt_block_number = 4;
+    bytes key_id = 5;
+    string token_id = 6;
+    bytes token0 = 7;
+    bytes token1 = 8;
+    string amount0 = 9;
+    string amount1 = 10;
+    string sqrt_price_x96 = 11;
+}
+message LiquidityMananager_Upgraded {
+    string evt_tx_hash = 1;
+    uint32 evt_index = 2;
+    google.protobuf.Timestamp evt_block_time = 3;
+    uint64 evt_block_number = 4;
+    bytes implementation = 5;
+}
+  
+message Fees_FeeDistributed {
+    string evt_tx_hash = 1;
+    uint32 evt_index = 2;
+    google.protobuf.Timestamp evt_block_time = 3;
+    uint64 evt_block_number = 4;
+    bytes currency = 5;
+    bytes recipient = 6;
+    string amount = 7;
+    uint64 distribution_type = 8;
+    bytes tracking_id = 9;
+    uint64 activity_id = 10;
+}
+message Fees_ProtocolFeeDistributed {
+    string evt_tx_hash = 1;
+    uint32 evt_index = 2;
+    google.protobuf.Timestamp evt_block_time = 3;
+    uint64 evt_block_number = 4;
+    bytes currency = 5;
+    string amount = 6;
+    uint64 activity_id = 7;
+}
+message Fees_ProtocolFeesControllerUpdated {
+    string evt_tx_hash = 1;
+    uint32 evt_index = 2;
+    google.protobuf.Timestamp evt_block_time = 3;
+    uint64 evt_block_number = 4;
+    bytes old_controller = 5;
+    bytes new_controller = 6;
+}
+message Fees_ProtocolWithdrawn {
+    string evt_tx_hash = 1;
+    uint32 evt_index = 2;
+    google.protobuf.Timestamp evt_block_time = 3;
+    uint64 evt_block_number = 4;
+    bytes currency = 5;
+    bytes to = 6;
+    string amount = 7;
+}
+message Fees_Withdrawn {
+    string evt_tx_hash = 1;
+    uint32 evt_index = 2;
+    google.protobuf.Timestamp evt_block_time = 3;
+    uint64 evt_block_number = 4;
+    bytes currency = 5;
+    bytes recipient = 6;
+    bytes to = 7;
+    string amount = 8;
+}
+  
+message Roles_Approval {
+    string evt_tx_hash = 1;
+    uint32 evt_index = 2;
+    google.protobuf.Timestamp evt_block_time = 3;
+    uint64 evt_block_number = 4;
+    bytes owner = 5;
+    bytes spender = 6;
+    string id = 7;
+    string amount = 8;
+}
+message Roles_BanRemoved {
+    string evt_tx_hash = 1;
+    uint32 evt_index = 2;
+    google.protobuf.Timestamp evt_block_time = 3;
+    uint64 evt_block_number = 4;
+    bytes account = 5;
+    bytes sender = 6;
+    bytes user = 7;
+}
+message Roles_ManagerChanged {
+    string evt_tx_hash = 1;
+    uint32 evt_index = 2;
+    google.protobuf.Timestamp evt_block_time = 3;
+    uint64 evt_block_number = 4;
+    bytes new_manager = 5;
+}
+message Roles_OwnershipTransferred {
+    string evt_tx_hash = 1;
+    uint32 evt_index = 2;
+    google.protobuf.Timestamp evt_block_time = 3;
+    uint64 evt_block_number = 4;
+    bytes user = 5;
+    bytes new_owner = 6;
+}
+message Roles_RoleAdded {
+    string evt_tx_hash = 1;
+    uint32 evt_index = 2;
+    google.protobuf.Timestamp evt_block_time = 3;
+    uint64 evt_block_number = 4;
+    bytes account = 5;
+    string role_id = 6;
+    string order_no = 7;
+}
+message Roles_RoleCreated {
+    string evt_tx_hash = 1;
+    uint32 evt_index = 2;
+    google.protobuf.Timestamp evt_block_time = 3;
+    uint64 evt_block_number = 4;
+    string id = 5;
+    string name = 6;
+}
+message Roles_RoleGranted {
+    string evt_tx_hash = 1;
+    uint32 evt_index = 2;
+    google.protobuf.Timestamp evt_block_time = 3;
+    uint64 evt_block_number = 4;
+    string id = 5;
+    bytes account = 6;
+    string role_name = 7;
+    bytes sender = 8;
+    bytes user = 9;
+}
+message Roles_RoleOrderUpdated {
+    string evt_tx_hash = 1;
+    uint32 evt_index = 2;
+    google.protobuf.Timestamp evt_block_time = 3;
+    uint64 evt_block_number = 4;
+    bytes account = 5;
+    string role_id = 6;
+    string order_no = 7;
+}
+message Roles_RoleRemoved {
+    string evt_tx_hash = 1;
+    uint32 evt_index = 2;
+    google.protobuf.Timestamp evt_block_time = 3;
+    uint64 evt_block_number = 4;
+    bytes account = 5;
+    string role_id = 6;
+}
+message Roles_RoleRenounced {
+    string evt_tx_hash = 1;
+    uint32 evt_index = 2;
+    google.protobuf.Timestamp evt_block_time = 3;
+    uint64 evt_block_number = 4;
+    bytes account = 5;
+    bytes sender = 6;
+    string id = 7;
+}
+message Roles_RoleRevoked {
+    string evt_tx_hash = 1;
+    uint32 evt_index = 2;
+    google.protobuf.Timestamp evt_block_time = 3;
+    uint64 evt_block_number = 4;
+    string id = 5;
+    bytes account = 6;
+    string role_name = 7;
+    bytes sender = 8;
+    bytes user = 9;
+}
+message Roles_Transfer {
+    string evt_tx_hash = 1;
+    uint32 evt_index = 2;
+    google.protobuf.Timestamp evt_block_time = 3;
+    uint64 evt_block_number = 4;
+    bytes caller = 5;
+    bytes from = 6;
+    bytes to = 7;
+    string id = 8;
+    string amount = 9;
+}
+message Roles_UserKicked {
+    string evt_tx_hash = 1;
+    uint32 evt_index = 2;
+    google.protobuf.Timestamp evt_block_time = 3;
+    uint64 evt_block_number = 4;
+    bytes account = 5;
+    bytes sender = 6;
+    bytes user = 7;
+    string deadline = 8;
+}
+  
+    
+message TokenCoin_Approval {
+    string evt_tx_hash = 1;
+    uint32 evt_index = 2;
+    google.protobuf.Timestamp evt_block_time = 3;
+    uint64 evt_block_number = 4;
+    string evt_address = 5;
+    bytes owner = 6;
+    bytes spender = 7;
+    string amount = 8;
+}
+    
+message TokenCoin_EnforcedOptionSet {
+    string evt_tx_hash = 1;
+    uint32 evt_index = 2;
+    google.protobuf.Timestamp evt_block_time = 3;
+    uint64 evt_block_number = 4;
+    string evt_address = 5;
+}
+    
+message TokenCoin_Initialized {
+    string evt_tx_hash = 1;
+    uint32 evt_index = 2;
+    google.protobuf.Timestamp evt_block_time = 3;
+    uint64 evt_block_number = 4;
+    string evt_address = 5;
+    uint64 version = 6;
+}
+    
+message TokenCoin_MsgInspectorSet {
+    string evt_tx_hash = 1;
+    uint32 evt_index = 2;
+    google.protobuf.Timestamp evt_block_time = 3;
+    uint64 evt_block_number = 4;
+    string evt_address = 5;
+    bytes inspector = 6;
+}
+    
+message TokenCoin_OftReceived {
+    string evt_tx_hash = 1;
+    uint32 evt_index = 2;
+    google.protobuf.Timestamp evt_block_time = 3;
+    uint64 evt_block_number = 4;
+    string evt_address = 5;
+    bytes guid = 6;
+    uint64 src_eid = 7;
+    bytes to_address = 8;
+    string amount_received_ld = 9;
+}
+    
+message TokenCoin_OftSent {
+    string evt_tx_hash = 1;
+    uint32 evt_index = 2;
+    google.protobuf.Timestamp evt_block_time = 3;
+    uint64 evt_block_number = 4;
+    string evt_address = 5;
+    bytes guid = 6;
+    uint64 dst_eid = 7;
+    bytes from_address = 8;
+    string amount_sent_ld = 9;
+    string amount_received_ld = 10;
+}
+    
+message TokenCoin_OwnershipTransferred {
+    string evt_tx_hash = 1;
+    uint32 evt_index = 2;
+    google.protobuf.Timestamp evt_block_time = 3;
+    uint64 evt_block_number = 4;
+    string evt_address = 5;
+    bytes previous_owner = 6;
+    bytes new_owner = 7;
+}
+    
+message TokenCoin_PeerSet {
+    string evt_tx_hash = 1;
+    uint32 evt_index = 2;
+    google.protobuf.Timestamp evt_block_time = 3;
+    uint64 evt_block_number = 4;
+    string evt_address = 5;
+    uint64 eid = 6;
+    bytes peer = 7;
+}
+    
+message TokenCoin_PreCrimeSet {
+    string evt_tx_hash = 1;
+    uint32 evt_index = 2;
+    google.protobuf.Timestamp evt_block_time = 3;
+    uint64 evt_block_number = 4;
+    string evt_address = 5;
+    bytes pre_crime_address = 6;
+}
+    
+message TokenCoin_Transfer {
+    string evt_tx_hash = 1;
+    uint32 evt_index = 2;
+    google.protobuf.Timestamp evt_block_time = 3;
+    uint64 evt_block_number = 4;
+    string evt_address = 5;
+    bytes from = 6;
+    bytes to = 7;
+    string amount = 8;
+}
+    
+message TokenCoin_ApproveCall {
+    string call_tx_hash = 1;
+    google.protobuf.Timestamp call_block_time = 2;
+    uint64 call_block_number = 3;
+    uint64 call_ordinal = 4;
+    bool call_success = 5;
+    string call_address = 6;
+    bytes spender = 7;
+    string amount = 8;
+    bool output_param0 = 9;
+}
+    
+message TokenCoin_InitializeCall {
+    string call_tx_hash = 1;
+    google.protobuf.Timestamp call_block_time = 2;
+    uint64 call_block_number = 3;
+    uint64 call_ordinal = 4;
+    bool call_success = 5;
+    string call_address = 6;
+    bytes u_token_id = 7;
+    bytes u_ip = 8;
+    string u_name = 9;
+    string u_symbol = 10;
+    string u_uri = 11;
+    string total_supply = 12;
+    bytes initial_owner = 13;
+}
+    
+message TokenCoin_LzReceiveCall {
+    string call_tx_hash = 1;
+    google.protobuf.Timestamp call_block_time = 2;
+    uint64 call_block_number = 3;
+    uint64 call_ordinal = 4;
+    bool call_success = 5;
+    string call_address = 6;
+    bytes u_guid = 7;
+    bytes u_message = 8;
+    bytes u_executor = 9;
+    bytes u_extra_data = 10;
+}
+    
+message TokenCoin_LzReceiveAndRevertCall {
+    string call_tx_hash = 1;
+    google.protobuf.Timestamp call_block_time = 2;
+    uint64 call_block_number = 3;
+    uint64 call_ordinal = 4;
+    bool call_success = 5;
+    string call_address = 6;
+}
+    
+message TokenCoin_LzReceiveSimulateCall {
+    string call_tx_hash = 1;
+    google.protobuf.Timestamp call_block_time = 2;
+    uint64 call_block_number = 3;
+    uint64 call_ordinal = 4;
+    bool call_success = 5;
+    string call_address = 6;
+    bytes u_guid = 7;
+    bytes u_message = 8;
+    bytes u_executor = 9;
+    bytes u_extra_data = 10;
+}
+    
+message TokenCoin_PermitCall {
+    string call_tx_hash = 1;
+    google.protobuf.Timestamp call_block_time = 2;
+    uint64 call_block_number = 3;
+    uint64 call_ordinal = 4;
+    bool call_success = 5;
+    string call_address = 6;
+    bytes owner = 7;
+    bytes spender = 8;
+    string value = 9;
+    string deadline = 10;
+    uint64 v = 11;
+    bytes r = 12;
+    bytes s = 13;
+}
+    
+message TokenCoin_RenounceOwnershipCall {
+    string call_tx_hash = 1;
+    google.protobuf.Timestamp call_block_time = 2;
+    uint64 call_block_number = 3;
+    uint64 call_ordinal = 4;
+    bool call_success = 5;
+    string call_address = 6;
+}
+    
+message TokenCoin_SendCall {
+    string call_tx_hash = 1;
+    google.protobuf.Timestamp call_block_time = 2;
+    uint64 call_block_number = 3;
+    uint64 call_ordinal = 4;
+    bool call_success = 5;
+    string call_address = 6;
+    bytes u_refund_address = 7;
+}
+    
+message TokenCoin_SetDelegateCall {
+    string call_tx_hash = 1;
+    google.protobuf.Timestamp call_block_time = 2;
+    uint64 call_block_number = 3;
+    uint64 call_ordinal = 4;
+    bool call_success = 5;
+    string call_address = 6;
+    bytes u_delegate = 7;
+}
+    
+message TokenCoin_SetDelegateByTitleOwnerCall {
+    string call_tx_hash = 1;
+    google.protobuf.Timestamp call_block_time = 2;
+    uint64 call_block_number = 3;
+    uint64 call_ordinal = 4;
+    bool call_success = 5;
+    string call_address = 6;
+    bytes u_delegate = 7;
+}
+    
+message TokenCoin_SetEnforcedOptionsCall {
+    string call_tx_hash = 1;
+    google.protobuf.Timestamp call_block_time = 2;
+    uint64 call_block_number = 3;
+    uint64 call_ordinal = 4;
+    bool call_success = 5;
+    string call_address = 6;
+}
+    
+message TokenCoin_SetMsgInspectorCall {
+    string call_tx_hash = 1;
+    google.protobuf.Timestamp call_block_time = 2;
+    uint64 call_block_number = 3;
+    uint64 call_ordinal = 4;
+    bool call_success = 5;
+    string call_address = 6;
+    bytes u_msg_inspector = 7;
+}
+    
+message TokenCoin_SetPeerCall {
+    string call_tx_hash = 1;
+    google.protobuf.Timestamp call_block_time = 2;
+    uint64 call_block_number = 3;
+    uint64 call_ordinal = 4;
+    bool call_success = 5;
+    string call_address = 6;
+    uint64 u_eid = 7;
+    bytes u_peer = 8;
+}
+    
+message TokenCoin_SetPeerByTitleOwnerCall {
+    string call_tx_hash = 1;
+    google.protobuf.Timestamp call_block_time = 2;
+    uint64 call_block_number = 3;
+    uint64 call_ordinal = 4;
+    bool call_success = 5;
+    string call_address = 6;
+    uint64 u_eid = 7;
+    bytes u_peer = 8;
+}
+    
+message TokenCoin_SetPreCrimeCall {
+    string call_tx_hash = 1;
+    google.protobuf.Timestamp call_block_time = 2;
+    uint64 call_block_number = 3;
+    uint64 call_ordinal = 4;
+    bool call_success = 5;
+    string call_address = 6;
+    bytes u_pre_crime = 7;
+}
+    
+message TokenCoin_TransferCall {
+    string call_tx_hash = 1;
+    google.protobuf.Timestamp call_block_time = 2;
+    uint64 call_block_number = 3;
+    uint64 call_ordinal = 4;
+    bool call_success = 5;
+    string call_address = 6;
+    bytes to = 7;
+    string amount = 8;
+    bool output_param0 = 9;
+}
+    
+message TokenCoin_TransferFromCall {
+    string call_tx_hash = 1;
+    google.protobuf.Timestamp call_block_time = 2;
+    uint64 call_block_number = 3;
+    uint64 call_ordinal = 4;
+    bool call_success = 5;
+    string call_address = 6;
+    bytes from = 7;
+    bytes to = 8;
+    string amount = 9;
+    bool output_param0 = 10;
+}
+    
+message TokenCoin_TransferOwnershipCall {
+    string call_tx_hash = 1;
+    google.protobuf.Timestamp call_block_time = 2;
+    uint64 call_block_number = 3;
+    uint64 call_ordinal = 4;
+    bool call_success = 5;
+    string call_address = 6;
+    bytes new_owner = 7;
+}

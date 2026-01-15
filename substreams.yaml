@@ -1,0 +1,44 @@
+specVersion: v0.1.0
+package:
+  name: token_layer
+  version: v0.1.0
+
+imports:
+    ethcommon: https://spkg.io/streamingfast/ethereum-common-v0.3.3.spkg
+
+protobuf:
+  files:
+    - contract.proto
+  importPaths:
+    - ./proto
+  excludePaths:
+    - sf/substreams
+    - google
+
+binaries:
+  default:
+    type: wasm/rust-v1
+    file: ./target/wasm32-unknown-unknown/release/substreams.wasm
+
+modules:
+
+  - name: store_token_coin_created
+    kind: store
+    initialBlock: 36235825
+    updatePolicy: set
+    valueType: proto:dynamic_datasource
+    blockFilter:
+      module: ethcommon:index_events
+      query:
+        string: evt_addr:0x000000194d2afe38a20707cb96ed1583038bf02f && evt_sig:0xa1063c0c8694776143a5ac15d82e9c5e51e129b4ef679db95d011b80e8dad094
+    inputs:
+      - source: sf.ethereum.type.v2.Block
+  - name: map_events
+    kind: map
+    initialBlock: 36235825
+    inputs:
+      - source: sf.ethereum.type.v2.Block
+      - store: store_token_coin_created
+    output:
+      type: proto:contract.v1.Events
+network: base-sepolia
