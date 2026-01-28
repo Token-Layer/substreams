@@ -22,8 +22,8 @@ substreams registry publish       # Publish your Substreams to substreams.dev
 All of these modules produce data filtered by these contracts:
 - _registry_ at **0x000000194d2afe38a20707cb96ed1583038bf02f**
 - _oapp_ at **0xf132f6224dad58568c54780c14e1d3b97a5f672a**
-- _manager_ at **0x0000007707a8be37357598bb351f39a25eba7028**
-- _launchpad_ at **0x00000a3e40c7ee4053389d5bb6fa57e64536def1**
+- _manager_ at **0x0000007E56E19A085a31F27AA61C8671c12d2BB7**
+- _launchpad_ at **0x00060EB62a2C042D00E29fDDc092f9eD1F25DeF1**
 - _ip_ at **0x00089428a12cd4a6064be0125ced1f6a1066deed**
 - _liquidity_mananager_ at **0xe60159a9831ed8c8a8832da1b9a10c03d737dcb2**
 - _fees_ at **0xfeeeba1dcc3abbd045e8b824d9699e735de49fee**
