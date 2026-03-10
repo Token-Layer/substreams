@@ -1,20 +1,37 @@
-# token_layer Substreams modules
+# TokenLayer Protocol Substreams
 
-This package was initialized via `substreams init`, using the `evm-events-calls` template.
+This directory contains the **Substreams implementation for the TokenLayer protocol**.
+It indexes TokenLayer protocol contracts, TokenCoin lifecycle events, Launchpad and Uniswap V3 trading activity, and emits:
 
-## Usage
+- protocol event stream (`map_events`)
+- database-ready `DatabaseChanges` stream (`db_out`) for PostgreSQL sinks
+
+Primary purpose:
+- reorg-safe, chain-specific indexing into Postgres schemas
+- consistent raw + normalized analytics layers for API consumption
+
+## What This Indexer Covers
+
+- Protocol contracts: Registry, Manager, OApp, Launchpad, IP, LiquidityManager, Fees, Roles
+- TokenCoin contracts created by Registry
+- Launchpad trades and pool state updates
+- Uniswap V3 pool create/swap/mint/burn (for tracked tokens)
+- Aggregates and current-state tables for balances, prices, and token stats
+- Cross-chain/global read views in `indexer` and `public` schemas
+
+## Local Dev (Substreams CLI)
 
 ```bash
 substreams build
 substreams auth
-substreams gui                # Get streaming!
+substreams gui ./substreams.yaml map_events
 ```
 
-Optionally, you can publish your Substreams to the [Substreams Registry](https://substreams.dev).
+Optional publishing:
 
 ```bash
-substreams registry login     # Login to substreams.dev
-substreams registry publish   # Publish your Substreams to substreams.dev
+substreams registry login
+substreams registry publish
 ```
 
 ## PostgreSQL SQL Sink (DatabaseChanges)
@@ -72,7 +89,7 @@ substreams build
 
 ### Chain-specific runners
 
-Use dedicated scripts per chain to avoid a shared `.env` collision:
+Use dedicated scripts per chain (recommended):
 
 ```bash
 cp .env.shared.sink.example .env.shared.sink
