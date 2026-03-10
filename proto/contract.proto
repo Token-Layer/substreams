@@ -106,6 +106,15 @@ message Events {
     repeated TokenCoin_PeerSet token_coin_peer_sets = 100;
     repeated TokenCoin_PreCrimeSet token_coin_pre_crime_sets = 101;
     repeated TokenCoin_Transfer token_coin_transfers = 102;
+    repeated UniswapV3_Swap uniswap_v3_swaps = 103;
+    repeated UniswapV3_PoolCreated uniswap_v3_pool_createds = 104;
+    repeated UniswapV3_Mint uniswap_v3_mints = 109;
+    repeated UniswapV3_Burn uniswap_v3_burns = 110;
+    repeated Launchpad_Graduation launchpad_graduations = 111;
+    repeated WalletTokenBalance wallet_token_balances = 105;
+    repeated UserFeeBalanceCurrent user_fee_balance_currents = 106;
+    repeated ProtocolFeeBalanceCurrent protocol_fee_balance_currents = 107;
+    repeated AggTokenTrade agg_token_trades = 108;
 }
 message Registry_AdapterDeployed {
     string evt_tx_hash = 1;
@@ -177,7 +186,7 @@ message Registry_ExternalTokenCreated {
     uint32 evt_index = 2;
     google.protobuf.Timestamp evt_block_time = 3;
     uint64 evt_block_number = 4;
-    bytes token_id = 5;
+    string token_id = 5;
     bytes token_address = 6;
     bytes adapter = 7;
     bytes external_token = 8;
@@ -367,9 +376,9 @@ message Registry_TokenCreated {
     uint32 evt_index = 2;
     google.protobuf.Timestamp evt_block_time = 3;
     uint64 evt_block_number = 4;
-    bytes token_address = 5;
+    string token_address = 5;
     string token_id = 6;
-    string hub_id = 7;
+    string ip_id = 7;
     string symbol = 8;
     string name = 9;
     string token_uri = 10;
@@ -380,7 +389,7 @@ message Registry_TokenRegistered {
     uint32 evt_index = 2;
     google.protobuf.Timestamp evt_block_time = 3;
     uint64 evt_block_number = 4;
-    bytes token_id = 5;
+    string token_id = 5;
     bytes token_address = 6;
     bytes template_id = 7;
     string name = 8;
@@ -604,6 +613,7 @@ message Launchpad_Buy {
     string liquidity_wei = 11;
     string supply = 12;
     string tokens_left = 13;
+    string token_address = 14;
 }
 message Launchpad_NewPoolType {
     string evt_tx_hash = 1;
@@ -649,6 +659,20 @@ message Launchpad_Sell {
     string liquidity_wei = 10;
     string supply = 11;
     string tokens_left = 12;
+    string token_address = 13;
+}
+
+message Launchpad_Graduation {
+    string evt_tx_hash = 1;
+    uint32 evt_index = 2;
+    google.protobuf.Timestamp evt_block_time = 3;
+    uint64 evt_block_number = 4;
+    bytes token_id = 5;
+    string token_address = 6;
+    bool is_external = 7;
+    string final_supply = 8;
+    string final_reserves = 9;
+    string token_layer_id = 10;
 }
   
 message Ip_Approval {
@@ -998,10 +1022,11 @@ message TokenCoin_Approval {
     uint32 evt_index = 2;
     google.protobuf.Timestamp evt_block_time = 3;
     uint64 evt_block_number = 4;
-    string evt_address = 5;
+    string token_address = 5;
     bytes owner = 6;
     bytes spender = 7;
     string amount = 8;
+    string token_layer_id = 9;
 }
     
 message TokenCoin_EnforcedOptionSet {
@@ -1009,7 +1034,8 @@ message TokenCoin_EnforcedOptionSet {
     uint32 evt_index = 2;
     google.protobuf.Timestamp evt_block_time = 3;
     uint64 evt_block_number = 4;
-    string evt_address = 5;
+    string token_address = 5;
+    string token_layer_id = 6;
 }
     
 message TokenCoin_Initialized {
@@ -1017,8 +1043,9 @@ message TokenCoin_Initialized {
     uint32 evt_index = 2;
     google.protobuf.Timestamp evt_block_time = 3;
     uint64 evt_block_number = 4;
-    string evt_address = 5;
+    string token_address = 5;
     uint64 version = 6;
+    string token_layer_id = 7;
 }
     
 message TokenCoin_MsgInspectorSet {
@@ -1026,8 +1053,9 @@ message TokenCoin_MsgInspectorSet {
     uint32 evt_index = 2;
     google.protobuf.Timestamp evt_block_time = 3;
     uint64 evt_block_number = 4;
-    string evt_address = 5;
+    string token_address = 5;
     bytes inspector = 6;
+    string token_layer_id = 7;
 }
     
 message TokenCoin_OftReceived {
@@ -1035,11 +1063,12 @@ message TokenCoin_OftReceived {
     uint32 evt_index = 2;
     google.protobuf.Timestamp evt_block_time = 3;
     uint64 evt_block_number = 4;
-    string evt_address = 5;
+    string token_address = 5;
     bytes guid = 6;
     uint64 src_eid = 7;
     bytes to_address = 8;
     string amount_received_ld = 9;
+    string token_layer_id = 10;
 }
     
 message TokenCoin_OftSent {
@@ -1047,12 +1076,13 @@ message TokenCoin_OftSent {
     uint32 evt_index = 2;
     google.protobuf.Timestamp evt_block_time = 3;
     uint64 evt_block_number = 4;
-    string evt_address = 5;
+    string token_address = 5;
     bytes guid = 6;
     uint64 dst_eid = 7;
     bytes from_address = 8;
     string amount_sent_ld = 9;
     string amount_received_ld = 10;
+    string token_layer_id = 11;
 }
     
 message TokenCoin_OwnershipTransferred {
@@ -1060,9 +1090,10 @@ message TokenCoin_OwnershipTransferred {
     uint32 evt_index = 2;
     google.protobuf.Timestamp evt_block_time = 3;
     uint64 evt_block_number = 4;
-    string evt_address = 5;
+    string token_address = 5;
     bytes previous_owner = 6;
     bytes new_owner = 7;
+    string token_layer_id = 8;
 }
     
 message TokenCoin_PeerSet {
@@ -1070,9 +1101,10 @@ message TokenCoin_PeerSet {
     uint32 evt_index = 2;
     google.protobuf.Timestamp evt_block_time = 3;
     uint64 evt_block_number = 4;
-    string evt_address = 5;
+    string token_address = 5;
     uint64 eid = 6;
     bytes peer = 7;
+    string token_layer_id = 8;
 }
     
 message TokenCoin_PreCrimeSet {
@@ -1080,8 +1112,9 @@ message TokenCoin_PreCrimeSet {
     uint32 evt_index = 2;
     google.protobuf.Timestamp evt_block_time = 3;
     uint64 evt_block_number = 4;
-    string evt_address = 5;
+    string token_address = 5;
     bytes pre_crime_address = 6;
+    string token_layer_id = 7;
 }
     
 message TokenCoin_Transfer {
@@ -1089,10 +1122,122 @@ message TokenCoin_Transfer {
     uint32 evt_index = 2;
     google.protobuf.Timestamp evt_block_time = 3;
     uint64 evt_block_number = 4;
-    string evt_address = 5;
+    string token_address = 5;
     bytes from = 6;
     bytes to = 7;
     string amount = 8;
+    string token_layer_id = 9;
+}
+
+message UniswapV3_Swap {
+    string evt_tx_hash = 1;
+    uint32 evt_index = 2;
+    google.protobuf.Timestamp evt_block_time = 3;
+    uint64 evt_block_number = 4;
+    string pool = 5;
+    string sender = 6;
+    string recipient = 7;
+    string amount0 = 8;
+    string amount1 = 9;
+    string sqrt_price_x96 = 10;
+    string liquidity = 11;
+    string tick = 12;
+    string token_address = 13;
+    string token_layer_id = 14;
+}
+
+message UniswapV3_PoolCreated {
+    string evt_tx_hash = 1;
+    uint32 evt_index = 2;
+    google.protobuf.Timestamp evt_block_time = 3;
+    uint64 evt_block_number = 4;
+    string pool = 5;
+    string token0 = 6;
+    string token1 = 7;
+    uint64 fee = 8;
+    string sqrt_price_x96 = 9;
+    string token_address = 10;
+    string token_layer_id = 11;
+}
+
+message UniswapV3_Mint {
+    string evt_tx_hash = 1;
+    uint32 evt_index = 2;
+    google.protobuf.Timestamp evt_block_time = 3;
+    uint64 evt_block_number = 4;
+    string pool = 5;
+    string owner = 6;
+    string sender = 7;
+    string tick_lower = 8;
+    string tick_upper = 9;
+    string amount = 10;
+    string amount0 = 11;
+    string amount1 = 12;
+    string token_address = 13;
+    string token_layer_id = 14;
+}
+
+message UniswapV3_Burn {
+    string evt_tx_hash = 1;
+    uint32 evt_index = 2;
+    google.protobuf.Timestamp evt_block_time = 3;
+    uint64 evt_block_number = 4;
+    string pool = 5;
+    string owner = 6;
+    string tick_lower = 7;
+    string tick_upper = 8;
+    string amount = 9;
+    string amount0 = 10;
+    string amount1 = 11;
+    string token_address = 12;
+    string token_layer_id = 13;
+}
+
+message WalletTokenBalance {
+    uint64 evt_block_number = 1;
+    google.protobuf.Timestamp evt_block_time = 2;
+    string token_address = 3;
+    string wallet = 4;
+    string balance = 5;
+    string token_layer_id = 6;
+}
+
+message UserFeeBalanceCurrent {
+    uint64 evt_block_number = 1;
+    google.protobuf.Timestamp evt_block_time = 2;
+    string account = 3;
+    string currency = 4;
+    string balance = 5;
+}
+
+message ProtocolFeeBalanceCurrent {
+    uint64 evt_block_number = 1;
+    google.protobuf.Timestamp evt_block_time = 2;
+    string currency = 3;
+    string balance = 4;
+}
+
+message AggTokenTrade {
+    string evt_tx_hash = 1;
+    uint32 evt_index = 2;
+    google.protobuf.Timestamp evt_block_time = 3;
+    uint64 evt_block_number = 4;
+    string venue = 5;
+    string trade_type = 6;
+    string wallet = 7;
+    string token_address = 8;
+    string pool = 9;
+    string token_amount = 10;
+    string usd_amount = 11;
+    string price_usd = 12;
+    string market_cap_usd = 13;
+    string token_layer_id = 14;
+    string token_amount_raw = 15;
+    string usd_amount_raw = 16;
+    uint64 token_decimals = 17;
+    uint64 quote_decimals = 18;
+    string token_decimals_source = 19;
+    string quote_decimals_source = 20;
 }
     
 message TokenCoin_ApproveCall {

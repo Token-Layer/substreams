@@ -207,6 +207,24 @@ pub struct Events {
     pub token_coin_pre_crime_sets: ::prost::alloc::vec::Vec<TokenCoinPreCrimeSet>,
     #[prost(message, repeated, tag="102")]
     pub token_coin_transfers: ::prost::alloc::vec::Vec<TokenCoinTransfer>,
+    #[prost(message, repeated, tag="103")]
+    pub uniswap_v3_swaps: ::prost::alloc::vec::Vec<UniswapV3Swap>,
+    #[prost(message, repeated, tag="104")]
+    pub uniswap_v3_pool_createds: ::prost::alloc::vec::Vec<UniswapV3PoolCreated>,
+    #[prost(message, repeated, tag="109")]
+    pub uniswap_v3_mints: ::prost::alloc::vec::Vec<UniswapV3Mint>,
+    #[prost(message, repeated, tag="110")]
+    pub uniswap_v3_burns: ::prost::alloc::vec::Vec<UniswapV3Burn>,
+    #[prost(message, repeated, tag="111")]
+    pub launchpad_graduations: ::prost::alloc::vec::Vec<LaunchpadGraduation>,
+    #[prost(message, repeated, tag="105")]
+    pub wallet_token_balances: ::prost::alloc::vec::Vec<WalletTokenBalance>,
+    #[prost(message, repeated, tag="106")]
+    pub user_fee_balance_currents: ::prost::alloc::vec::Vec<UserFeeBalanceCurrent>,
+    #[prost(message, repeated, tag="107")]
+    pub protocol_fee_balance_currents: ::prost::alloc::vec::Vec<ProtocolFeeBalanceCurrent>,
+    #[prost(message, repeated, tag="108")]
+    pub agg_token_trades: ::prost::alloc::vec::Vec<AggTokenTrade>,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -349,8 +367,8 @@ pub struct RegistryExternalTokenCreated {
     pub evt_block_time: ::core::option::Option<::prost_types::Timestamp>,
     #[prost(uint64, tag="4")]
     pub evt_block_number: u64,
-    #[prost(bytes="vec", tag="5")]
-    pub token_id: ::prost::alloc::vec::Vec<u8>,
+    #[prost(string, tag="5")]
+    pub token_id: ::prost::alloc::string::String,
     #[prost(bytes="vec", tag="6")]
     pub token_address: ::prost::alloc::vec::Vec<u8>,
     #[prost(bytes="vec", tag="7")]
@@ -729,12 +747,12 @@ pub struct RegistryTokenCreated {
     pub evt_block_time: ::core::option::Option<::prost_types::Timestamp>,
     #[prost(uint64, tag="4")]
     pub evt_block_number: u64,
-    #[prost(bytes="vec", tag="5")]
-    pub token_address: ::prost::alloc::vec::Vec<u8>,
+    #[prost(string, tag="5")]
+    pub token_address: ::prost::alloc::string::String,
     #[prost(string, tag="6")]
     pub token_id: ::prost::alloc::string::String,
     #[prost(string, tag="7")]
-    pub hub_id: ::prost::alloc::string::String,
+    pub ip_id: ::prost::alloc::string::String,
     #[prost(string, tag="8")]
     pub symbol: ::prost::alloc::string::String,
     #[prost(string, tag="9")]
@@ -755,8 +773,8 @@ pub struct RegistryTokenRegistered {
     pub evt_block_time: ::core::option::Option<::prost_types::Timestamp>,
     #[prost(uint64, tag="4")]
     pub evt_block_number: u64,
-    #[prost(bytes="vec", tag="5")]
-    pub token_id: ::prost::alloc::vec::Vec<u8>,
+    #[prost(string, tag="5")]
+    pub token_id: ::prost::alloc::string::String,
     #[prost(bytes="vec", tag="6")]
     pub token_address: ::prost::alloc::vec::Vec<u8>,
     #[prost(bytes="vec", tag="7")]
@@ -1197,6 +1215,8 @@ pub struct LaunchpadBuy {
     pub supply: ::prost::alloc::string::String,
     #[prost(string, tag="13")]
     pub tokens_left: ::prost::alloc::string::String,
+    #[prost(string, tag="14")]
+    pub token_address: ::prost::alloc::string::String,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -1287,6 +1307,32 @@ pub struct LaunchpadSell {
     pub supply: ::prost::alloc::string::String,
     #[prost(string, tag="12")]
     pub tokens_left: ::prost::alloc::string::String,
+    #[prost(string, tag="13")]
+    pub token_address: ::prost::alloc::string::String,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct LaunchpadGraduation {
+    #[prost(string, tag="1")]
+    pub evt_tx_hash: ::prost::alloc::string::String,
+    #[prost(uint32, tag="2")]
+    pub evt_index: u32,
+    #[prost(message, optional, tag="3")]
+    pub evt_block_time: ::core::option::Option<::prost_types::Timestamp>,
+    #[prost(uint64, tag="4")]
+    pub evt_block_number: u64,
+    #[prost(bytes="vec", tag="5")]
+    pub token_id: ::prost::alloc::vec::Vec<u8>,
+    #[prost(string, tag="6")]
+    pub token_address: ::prost::alloc::string::String,
+    #[prost(bool, tag="7")]
+    pub is_external: bool,
+    #[prost(string, tag="8")]
+    pub final_supply: ::prost::alloc::string::String,
+    #[prost(string, tag="9")]
+    pub final_reserves: ::prost::alloc::string::String,
+    #[prost(string, tag="10")]
+    pub token_layer_id: ::prost::alloc::string::String,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -1974,13 +2020,15 @@ pub struct TokenCoinApproval {
     #[prost(uint64, tag="4")]
     pub evt_block_number: u64,
     #[prost(string, tag="5")]
-    pub evt_address: ::prost::alloc::string::String,
+    pub token_address: ::prost::alloc::string::String,
     #[prost(bytes="vec", tag="6")]
     pub owner: ::prost::alloc::vec::Vec<u8>,
     #[prost(bytes="vec", tag="7")]
     pub spender: ::prost::alloc::vec::Vec<u8>,
     #[prost(string, tag="8")]
     pub amount: ::prost::alloc::string::String,
+    #[prost(string, tag="9")]
+    pub token_layer_id: ::prost::alloc::string::String,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -1994,7 +2042,9 @@ pub struct TokenCoinEnforcedOptionSet {
     #[prost(uint64, tag="4")]
     pub evt_block_number: u64,
     #[prost(string, tag="5")]
-    pub evt_address: ::prost::alloc::string::String,
+    pub token_address: ::prost::alloc::string::String,
+    #[prost(string, tag="6")]
+    pub token_layer_id: ::prost::alloc::string::String,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -2008,9 +2058,11 @@ pub struct TokenCoinInitialized {
     #[prost(uint64, tag="4")]
     pub evt_block_number: u64,
     #[prost(string, tag="5")]
-    pub evt_address: ::prost::alloc::string::String,
+    pub token_address: ::prost::alloc::string::String,
     #[prost(uint64, tag="6")]
     pub version: u64,
+    #[prost(string, tag="7")]
+    pub token_layer_id: ::prost::alloc::string::String,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -2024,9 +2076,11 @@ pub struct TokenCoinMsgInspectorSet {
     #[prost(uint64, tag="4")]
     pub evt_block_number: u64,
     #[prost(string, tag="5")]
-    pub evt_address: ::prost::alloc::string::String,
+    pub token_address: ::prost::alloc::string::String,
     #[prost(bytes="vec", tag="6")]
     pub inspector: ::prost::alloc::vec::Vec<u8>,
+    #[prost(string, tag="7")]
+    pub token_layer_id: ::prost::alloc::string::String,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -2040,7 +2094,7 @@ pub struct TokenCoinOftReceived {
     #[prost(uint64, tag="4")]
     pub evt_block_number: u64,
     #[prost(string, tag="5")]
-    pub evt_address: ::prost::alloc::string::String,
+    pub token_address: ::prost::alloc::string::String,
     #[prost(bytes="vec", tag="6")]
     pub guid: ::prost::alloc::vec::Vec<u8>,
     #[prost(uint64, tag="7")]
@@ -2049,6 +2103,8 @@ pub struct TokenCoinOftReceived {
     pub to_address: ::prost::alloc::vec::Vec<u8>,
     #[prost(string, tag="9")]
     pub amount_received_ld: ::prost::alloc::string::String,
+    #[prost(string, tag="10")]
+    pub token_layer_id: ::prost::alloc::string::String,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -2062,7 +2118,7 @@ pub struct TokenCoinOftSent {
     #[prost(uint64, tag="4")]
     pub evt_block_number: u64,
     #[prost(string, tag="5")]
-    pub evt_address: ::prost::alloc::string::String,
+    pub token_address: ::prost::alloc::string::String,
     #[prost(bytes="vec", tag="6")]
     pub guid: ::prost::alloc::vec::Vec<u8>,
     #[prost(uint64, tag="7")]
@@ -2073,6 +2129,8 @@ pub struct TokenCoinOftSent {
     pub amount_sent_ld: ::prost::alloc::string::String,
     #[prost(string, tag="10")]
     pub amount_received_ld: ::prost::alloc::string::String,
+    #[prost(string, tag="11")]
+    pub token_layer_id: ::prost::alloc::string::String,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -2086,11 +2144,13 @@ pub struct TokenCoinOwnershipTransferred {
     #[prost(uint64, tag="4")]
     pub evt_block_number: u64,
     #[prost(string, tag="5")]
-    pub evt_address: ::prost::alloc::string::String,
+    pub token_address: ::prost::alloc::string::String,
     #[prost(bytes="vec", tag="6")]
     pub previous_owner: ::prost::alloc::vec::Vec<u8>,
     #[prost(bytes="vec", tag="7")]
     pub new_owner: ::prost::alloc::vec::Vec<u8>,
+    #[prost(string, tag="8")]
+    pub token_layer_id: ::prost::alloc::string::String,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -2104,11 +2164,13 @@ pub struct TokenCoinPeerSet {
     #[prost(uint64, tag="4")]
     pub evt_block_number: u64,
     #[prost(string, tag="5")]
-    pub evt_address: ::prost::alloc::string::String,
+    pub token_address: ::prost::alloc::string::String,
     #[prost(uint64, tag="6")]
     pub eid: u64,
     #[prost(bytes="vec", tag="7")]
     pub peer: ::prost::alloc::vec::Vec<u8>,
+    #[prost(string, tag="8")]
+    pub token_layer_id: ::prost::alloc::string::String,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -2122,9 +2184,11 @@ pub struct TokenCoinPreCrimeSet {
     #[prost(uint64, tag="4")]
     pub evt_block_number: u64,
     #[prost(string, tag="5")]
-    pub evt_address: ::prost::alloc::string::String,
+    pub token_address: ::prost::alloc::string::String,
     #[prost(bytes="vec", tag="6")]
     pub pre_crime_address: ::prost::alloc::vec::Vec<u8>,
+    #[prost(string, tag="7")]
+    pub token_layer_id: ::prost::alloc::string::String,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -2138,13 +2202,221 @@ pub struct TokenCoinTransfer {
     #[prost(uint64, tag="4")]
     pub evt_block_number: u64,
     #[prost(string, tag="5")]
-    pub evt_address: ::prost::alloc::string::String,
+    pub token_address: ::prost::alloc::string::String,
     #[prost(bytes="vec", tag="6")]
     pub from: ::prost::alloc::vec::Vec<u8>,
     #[prost(bytes="vec", tag="7")]
     pub to: ::prost::alloc::vec::Vec<u8>,
     #[prost(string, tag="8")]
     pub amount: ::prost::alloc::string::String,
+    #[prost(string, tag="9")]
+    pub token_layer_id: ::prost::alloc::string::String,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct UniswapV3Swap {
+    #[prost(string, tag="1")]
+    pub evt_tx_hash: ::prost::alloc::string::String,
+    #[prost(uint32, tag="2")]
+    pub evt_index: u32,
+    #[prost(message, optional, tag="3")]
+    pub evt_block_time: ::core::option::Option<::prost_types::Timestamp>,
+    #[prost(uint64, tag="4")]
+    pub evt_block_number: u64,
+    #[prost(string, tag="5")]
+    pub pool: ::prost::alloc::string::String,
+    #[prost(string, tag="6")]
+    pub sender: ::prost::alloc::string::String,
+    #[prost(string, tag="7")]
+    pub recipient: ::prost::alloc::string::String,
+    #[prost(string, tag="8")]
+    pub amount0: ::prost::alloc::string::String,
+    #[prost(string, tag="9")]
+    pub amount1: ::prost::alloc::string::String,
+    #[prost(string, tag="10")]
+    pub sqrt_price_x96: ::prost::alloc::string::String,
+    #[prost(string, tag="11")]
+    pub liquidity: ::prost::alloc::string::String,
+    #[prost(string, tag="12")]
+    pub tick: ::prost::alloc::string::String,
+    #[prost(string, tag="13")]
+    pub token_address: ::prost::alloc::string::String,
+    #[prost(string, tag="14")]
+    pub token_layer_id: ::prost::alloc::string::String,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct UniswapV3PoolCreated {
+    #[prost(string, tag="1")]
+    pub evt_tx_hash: ::prost::alloc::string::String,
+    #[prost(uint32, tag="2")]
+    pub evt_index: u32,
+    #[prost(message, optional, tag="3")]
+    pub evt_block_time: ::core::option::Option<::prost_types::Timestamp>,
+    #[prost(uint64, tag="4")]
+    pub evt_block_number: u64,
+    #[prost(string, tag="5")]
+    pub pool: ::prost::alloc::string::String,
+    #[prost(string, tag="6")]
+    pub token0: ::prost::alloc::string::String,
+    #[prost(string, tag="7")]
+    pub token1: ::prost::alloc::string::String,
+    #[prost(uint64, tag="8")]
+    pub fee: u64,
+    #[prost(string, tag="9")]
+    pub sqrt_price_x96: ::prost::alloc::string::String,
+    #[prost(string, tag="10")]
+    pub token_address: ::prost::alloc::string::String,
+    #[prost(string, tag="11")]
+    pub token_layer_id: ::prost::alloc::string::String,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct UniswapV3Mint {
+    #[prost(string, tag="1")]
+    pub evt_tx_hash: ::prost::alloc::string::String,
+    #[prost(uint32, tag="2")]
+    pub evt_index: u32,
+    #[prost(message, optional, tag="3")]
+    pub evt_block_time: ::core::option::Option<::prost_types::Timestamp>,
+    #[prost(uint64, tag="4")]
+    pub evt_block_number: u64,
+    #[prost(string, tag="5")]
+    pub pool: ::prost::alloc::string::String,
+    #[prost(string, tag="6")]
+    pub owner: ::prost::alloc::string::String,
+    #[prost(string, tag="7")]
+    pub sender: ::prost::alloc::string::String,
+    #[prost(string, tag="8")]
+    pub tick_lower: ::prost::alloc::string::String,
+    #[prost(string, tag="9")]
+    pub tick_upper: ::prost::alloc::string::String,
+    #[prost(string, tag="10")]
+    pub amount: ::prost::alloc::string::String,
+    #[prost(string, tag="11")]
+    pub amount0: ::prost::alloc::string::String,
+    #[prost(string, tag="12")]
+    pub amount1: ::prost::alloc::string::String,
+    #[prost(string, tag="13")]
+    pub token_address: ::prost::alloc::string::String,
+    #[prost(string, tag="14")]
+    pub token_layer_id: ::prost::alloc::string::String,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct UniswapV3Burn {
+    #[prost(string, tag="1")]
+    pub evt_tx_hash: ::prost::alloc::string::String,
+    #[prost(uint32, tag="2")]
+    pub evt_index: u32,
+    #[prost(message, optional, tag="3")]
+    pub evt_block_time: ::core::option::Option<::prost_types::Timestamp>,
+    #[prost(uint64, tag="4")]
+    pub evt_block_number: u64,
+    #[prost(string, tag="5")]
+    pub pool: ::prost::alloc::string::String,
+    #[prost(string, tag="6")]
+    pub owner: ::prost::alloc::string::String,
+    #[prost(string, tag="7")]
+    pub tick_lower: ::prost::alloc::string::String,
+    #[prost(string, tag="8")]
+    pub tick_upper: ::prost::alloc::string::String,
+    #[prost(string, tag="9")]
+    pub amount: ::prost::alloc::string::String,
+    #[prost(string, tag="10")]
+    pub amount0: ::prost::alloc::string::String,
+    #[prost(string, tag="11")]
+    pub amount1: ::prost::alloc::string::String,
+    #[prost(string, tag="12")]
+    pub token_address: ::prost::alloc::string::String,
+    #[prost(string, tag="13")]
+    pub token_layer_id: ::prost::alloc::string::String,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct WalletTokenBalance {
+    #[prost(uint64, tag="1")]
+    pub evt_block_number: u64,
+    #[prost(message, optional, tag="2")]
+    pub evt_block_time: ::core::option::Option<::prost_types::Timestamp>,
+    #[prost(string, tag="3")]
+    pub token_address: ::prost::alloc::string::String,
+    #[prost(string, tag="4")]
+    pub wallet: ::prost::alloc::string::String,
+    #[prost(string, tag="5")]
+    pub balance: ::prost::alloc::string::String,
+    #[prost(string, tag="6")]
+    pub token_layer_id: ::prost::alloc::string::String,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct UserFeeBalanceCurrent {
+    #[prost(uint64, tag="1")]
+    pub evt_block_number: u64,
+    #[prost(message, optional, tag="2")]
+    pub evt_block_time: ::core::option::Option<::prost_types::Timestamp>,
+    #[prost(string, tag="3")]
+    pub account: ::prost::alloc::string::String,
+    #[prost(string, tag="4")]
+    pub currency: ::prost::alloc::string::String,
+    #[prost(string, tag="5")]
+    pub balance: ::prost::alloc::string::String,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct ProtocolFeeBalanceCurrent {
+    #[prost(uint64, tag="1")]
+    pub evt_block_number: u64,
+    #[prost(message, optional, tag="2")]
+    pub evt_block_time: ::core::option::Option<::prost_types::Timestamp>,
+    #[prost(string, tag="3")]
+    pub currency: ::prost::alloc::string::String,
+    #[prost(string, tag="4")]
+    pub balance: ::prost::alloc::string::String,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct AggTokenTrade {
+    #[prost(string, tag="1")]
+    pub evt_tx_hash: ::prost::alloc::string::String,
+    #[prost(uint32, tag="2")]
+    pub evt_index: u32,
+    #[prost(message, optional, tag="3")]
+    pub evt_block_time: ::core::option::Option<::prost_types::Timestamp>,
+    #[prost(uint64, tag="4")]
+    pub evt_block_number: u64,
+    #[prost(string, tag="5")]
+    pub venue: ::prost::alloc::string::String,
+    #[prost(string, tag="6")]
+    pub trade_type: ::prost::alloc::string::String,
+    #[prost(string, tag="7")]
+    pub wallet: ::prost::alloc::string::String,
+    #[prost(string, tag="8")]
+    pub token_address: ::prost::alloc::string::String,
+    #[prost(string, tag="9")]
+    pub pool: ::prost::alloc::string::String,
+    #[prost(string, tag="10")]
+    pub token_amount: ::prost::alloc::string::String,
+    #[prost(string, tag="11")]
+    pub usd_amount: ::prost::alloc::string::String,
+    #[prost(string, tag="12")]
+    pub price_usd: ::prost::alloc::string::String,
+    #[prost(string, tag="13")]
+    pub market_cap_usd: ::prost::alloc::string::String,
+    #[prost(string, tag="14")]
+    pub token_layer_id: ::prost::alloc::string::String,
+    #[prost(string, tag="15")]
+    pub token_amount_raw: ::prost::alloc::string::String,
+    #[prost(string, tag="16")]
+    pub usd_amount_raw: ::prost::alloc::string::String,
+    #[prost(uint64, tag="17")]
+    pub token_decimals: u64,
+    #[prost(uint64, tag="18")]
+    pub quote_decimals: u64,
+    #[prost(string, tag="19")]
+    pub token_decimals_source: ::prost::alloc::string::String,
+    #[prost(string, tag="20")]
+    pub quote_decimals_source: ::prost::alloc::string::String,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
