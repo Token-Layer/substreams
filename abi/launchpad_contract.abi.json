@@ -1237,6 +1237,37 @@
     "type": "event"
   },
   {
+    "type": "event",
+    "name": "Graduation",
+    "inputs": [
+        {
+            "name": "tokenId",
+            "type": "bytes32",
+            "indexed": true,
+            "internalType": "TokenId"
+        },
+        {
+            "name": "isExternal",
+            "type": "bool",
+            "indexed": false,
+            "internalType": "bool"
+        },
+        {
+            "name": "finalSupply",
+            "type": "uint256",
+            "indexed": false,
+            "internalType": "uint256"
+        },
+        {
+            "name": "finalReserves",
+            "type": "uint256",
+            "indexed": false,
+            "internalType": "uint256"
+        }
+    ],
+    "anonymous": false
+  },
+  {
     "anonymous": false,
     "inputs": [
       {

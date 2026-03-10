@@ -117,4 +117,9 @@ modules:
     output:
       type: proto:sf.substreams.sink.database.v1.DatabaseChanges
 
+sink:
+  module: db_out
+  type: sf.substreams.sink.sql.v1.Service
+  config:
+    schema: "./schema.sql"
 network: base-sepolia
