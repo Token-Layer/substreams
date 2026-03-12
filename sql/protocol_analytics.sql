@@ -240,6 +240,212 @@ SELECT
   pool
 FROM "agg_token_trade";
 
+CREATE OR REPLACE VIEW "vw_token_candles" AS
+WITH minute_final AS (
+  SELECT
+    token_layer_id,
+    token_address,
+    'all'::text AS venue,
+    '1m'::text AS candle_interval,
+    bucket_start,
+    bucket_end,
+    open_price_usd,
+    high_price_usd,
+    low_price_usd,
+    close_price_usd,
+    volume_token,
+    volume_token_raw,
+    volume_usd,
+    volume_usd_raw,
+    trade_count,
+    last_evt_block_number,
+    last_evt_block_time,
+    NULL::text AS last_evt_tx_hash,
+    0::numeric AS last_evt_index
+  FROM "agg_token_candle_1m"
+),
+bucketed AS (
+  SELECT
+    token_layer_id,
+    token_address,
+    venue,
+    candle_interval,
+    bucket_start,
+    bucket_end,
+    open_price_usd,
+    high_price_usd,
+    low_price_usd,
+    close_price_usd,
+    volume_token,
+    volume_token_raw,
+    volume_usd,
+    volume_usd_raw,
+    trade_count,
+    last_evt_block_number,
+    last_evt_block_time,
+    last_evt_tx_hash,
+    last_evt_index
+  FROM minute_final
+
+  UNION ALL
+
+  SELECT
+    token_layer_id,
+    token_address,
+    venue,
+    '5m'::text AS candle_interval,
+    date_trunc('hour', bucket_start)
+      + ((extract(minute FROM bucket_start)::int / 5) * INTERVAL '5 minute') AS bucket_start,
+    date_trunc('hour', bucket_start)
+      + ((extract(minute FROM bucket_start)::int / 5) * INTERVAL '5 minute')
+      + INTERVAL '5 minute' AS bucket_end,
+    open_price_usd,
+    high_price_usd,
+    low_price_usd,
+    close_price_usd,
+    volume_token,
+    volume_token_raw,
+    volume_usd,
+    volume_usd_raw,
+    trade_count,
+    last_evt_block_number,
+    last_evt_block_time,
+    last_evt_tx_hash,
+    last_evt_index
+  FROM minute_final
+
+  UNION ALL
+
+  SELECT
+    token_layer_id,
+    token_address,
+    venue,
+    '15m'::text AS candle_interval,
+    date_trunc('hour', bucket_start)
+      + ((extract(minute FROM bucket_start)::int / 15) * INTERVAL '15 minute') AS bucket_start,
+    date_trunc('hour', bucket_start)
+      + ((extract(minute FROM bucket_start)::int / 15) * INTERVAL '15 minute')
+      + INTERVAL '15 minute' AS bucket_end,
+    open_price_usd,
+    high_price_usd,
+    low_price_usd,
+    close_price_usd,
+    volume_token,
+    volume_token_raw,
+    volume_usd,
+    volume_usd_raw,
+    trade_count,
+    last_evt_block_number,
+    last_evt_block_time,
+    last_evt_tx_hash,
+    last_evt_index
+  FROM minute_final
+
+  UNION ALL
+
+  SELECT
+    token_layer_id,
+    token_address,
+    venue,
+    '1h'::text AS candle_interval,
+    date_trunc('hour', bucket_start) AS bucket_start,
+    date_trunc('hour', bucket_start) + INTERVAL '1 hour' AS bucket_end,
+    open_price_usd,
+    high_price_usd,
+    low_price_usd,
+    close_price_usd,
+    volume_token,
+    volume_token_raw,
+    volume_usd,
+    volume_usd_raw,
+    trade_count,
+    last_evt_block_number,
+    last_evt_block_time,
+    last_evt_tx_hash,
+    last_evt_index
+  FROM minute_final
+
+  UNION ALL
+
+  SELECT
+    token_layer_id,
+    token_address,
+    venue,
+    '4h'::text AS candle_interval,
+    date_trunc('hour', bucket_start)
+      - ((extract(hour FROM bucket_start)::int % 4) * INTERVAL '1 hour') AS bucket_start,
+    date_trunc('hour', bucket_start)
+      - ((extract(hour FROM bucket_start)::int % 4) * INTERVAL '1 hour')
+      + INTERVAL '4 hour' AS bucket_end,
+    open_price_usd,
+    high_price_usd,
+    low_price_usd,
+    close_price_usd,
+    volume_token,
+    volume_token_raw,
+    volume_usd,
+    volume_usd_raw,
+    trade_count,
+    last_evt_block_number,
+    last_evt_block_time,
+    last_evt_tx_hash,
+    last_evt_index
+  FROM minute_final
+
+  UNION ALL
+
+  SELECT
+    token_layer_id,
+    token_address,
+    venue,
+    '1d'::text AS candle_interval,
+    date_trunc('day', bucket_start) AS bucket_start,
+    date_trunc('day', bucket_start) + INTERVAL '1 day' AS bucket_end,
+    open_price_usd,
+    high_price_usd,
+    low_price_usd,
+    close_price_usd,
+    volume_token,
+    volume_token_raw,
+    volume_usd,
+    volume_usd_raw,
+    trade_count,
+    last_evt_block_number,
+    last_evt_block_time,
+    last_evt_tx_hash,
+    last_evt_index
+  FROM minute_final
+),
+ranked AS (
+  SELECT
+    *,
+    ROW_NUMBER() OVER (
+      PARTITION BY token_layer_id, venue, candle_interval, bucket_start
+      ORDER BY bucket_start ASC, last_evt_block_number ASC, last_evt_index ASC
+    ) AS rn_open,
+    ROW_NUMBER() OVER (
+      PARTITION BY token_layer_id, venue, candle_interval, bucket_start
+      ORDER BY last_evt_block_time DESC, last_evt_block_number DESC, last_evt_index DESC
+    ) AS rn_close
+  FROM bucketed
+)
+SELECT
+  token_layer_id,
+  MIN(token_address) AS token_address,
+  venue,
+  candle_interval,
+  bucket_start,
+  MAX(bucket_end) AS bucket_end,
+  MAX(CASE WHEN rn_open = 1 THEN open_price_usd END) AS open_price_usd,
+  MAX(high_price_usd) AS high_price_usd,
+  MIN(low_price_usd) AS low_price_usd,
+  MAX(CASE WHEN rn_close = 1 THEN close_price_usd END) AS close_price_usd,
+  SUM(volume_token)::numeric AS volume_token,
+  SUM(volume_usd)::numeric AS volume_usd,
+  SUM(trade_count)::numeric AS trade_count
+FROM ranked
+GROUP BY token_layer_id, venue, candle_interval, bucket_start;
+
 CREATE OR REPLACE VIEW "vw_uniswap_v3_lp_deposits" AS
 SELECT
   evt_block_number,
@@ -251,7 +457,8 @@ SELECT
   sender,
   tick_lower,
   tick_upper,
-  amount,
+  amount AS liquidity_amount,
+  amount AS liquidity_amount_raw,
   amount0,
   amount1,
   token_address,
@@ -268,7 +475,8 @@ SELECT
   owner,
   tick_lower,
   tick_upper,
-  amount,
+  amount AS liquidity_amount,
+  amount AS liquidity_amount_raw,
   amount0,
   amount1,
   token_address,
@@ -290,7 +498,14 @@ SELECT
 FROM "raw_launchpad_graduation";
 
 CREATE OR REPLACE VIEW "vw_token_activity" AS
-WITH activity_base AS (
+WITH cfg AS (
+  SELECT
+    COALESCE(MAX(CASE WHEN key = 'default_token_decimals' THEN value END)::numeric, 18::numeric) AS default_token_decimals,
+    COALESCE(lower(replace(MAX(CASE WHEN key = 'usd_token_address' THEN value END), '0x', '')), '') AS usd_token_address,
+    COALESCE(MAX(CASE WHEN key = 'usd_token_decimals' THEN value END)::numeric, 6::numeric) AS usd_token_decimals
+  FROM "cfg_indexer_config"
+),
+activity_base AS (
   SELECT
     'trade'::text AS activity_type,
     t.trade_type::text AS activity_subtype,
@@ -311,6 +526,8 @@ WITH activity_base AS (
     t.price_usd::numeric AS price_usd,
     t.market_cap_usd::numeric AS market_cap_usd,
     t.pool::text AS pool,
+    NULL::numeric AS liquidity_amount,
+    NULL::numeric AS liquidity_amount_raw,
     NULL::numeric AS amount0,
     NULL::numeric AS amount1,
     NULL::text AS guid,
@@ -345,6 +562,8 @@ WITH activity_base AS (
     NULL::text,
     NULL::numeric,
     NULL::numeric,
+    NULL::numeric,
+    NULL::numeric,
     NULL::text,
     NULL::numeric,
     NULL::numeric,
@@ -375,6 +594,8 @@ WITH activity_base AS (
     NULL::numeric,
     NULL::numeric,
     NULL::text,
+    NULL::numeric,
+    NULL::numeric,
     NULL::numeric,
     t.amount_received_ld::numeric,
     t.guid::text,
@@ -408,6 +629,8 @@ WITH activity_base AS (
     NULL::numeric,
     NULL::text,
     NULL::numeric,
+    NULL::numeric,
+    NULL::numeric,
     t.amount_received_ld::numeric,
     t.guid::text,
     t.src_eid::numeric,
@@ -432,13 +655,31 @@ WITH activity_base AS (
     t.owner::text,
     t.sender::text,
     NULL::text,
-    t.amount::numeric,
-    t.amount::numeric,
-    NULL::numeric,
-    NULL::numeric,
+    CASE
+      WHEN lower(replace(pm.token0::text, '0x', '')) = cfg.usd_token_address THEN t.amount1::numeric
+      WHEN lower(replace(pm.token1::text, '0x', '')) = cfg.usd_token_address THEN t.amount0::numeric
+      ELSE NULL::numeric
+    END,
+    CASE
+      WHEN lower(replace(pm.token0::text, '0x', '')) = cfg.usd_token_address THEN t.amount1::numeric
+      WHEN lower(replace(pm.token1::text, '0x', '')) = cfg.usd_token_address THEN t.amount0::numeric
+      ELSE NULL::numeric
+    END,
+    CASE
+      WHEN lower(replace(pm.token0::text, '0x', '')) = cfg.usd_token_address THEN t.amount0::numeric / power(10::numeric, cfg.usd_token_decimals)
+      WHEN lower(replace(pm.token1::text, '0x', '')) = cfg.usd_token_address THEN t.amount1::numeric / power(10::numeric, cfg.usd_token_decimals)
+      ELSE NULL::numeric
+    END,
+    CASE
+      WHEN lower(replace(pm.token0::text, '0x', '')) = cfg.usd_token_address THEN t.amount0::numeric
+      WHEN lower(replace(pm.token1::text, '0x', '')) = cfg.usd_token_address THEN t.amount1::numeric
+      ELSE NULL::numeric
+    END,
     NULL::numeric,
     NULL::numeric,
     t.pool::text,
+    t.amount::numeric,
+    t.amount::numeric,
     t.amount0::numeric,
     t.amount1::numeric,
     NULL::text,
@@ -448,6 +689,14 @@ WITH activity_base AS (
     NULL::numeric,
     NULL::numeric
   FROM "raw_uniswap_v3_mint" t
+  CROSS JOIN cfg
+  LEFT JOIN LATERAL (
+    SELECT p.token0, p.token1
+    FROM "raw_uniswap_v3_pool_created" p
+    WHERE lower(p.pool) = lower(t.pool)
+    ORDER BY p.evt_block_number DESC, p.evt_index DESC
+    LIMIT 1
+  ) pm ON TRUE
 
   UNION ALL
 
@@ -464,13 +713,31 @@ WITH activity_base AS (
     t.owner::text,
     NULL::text,
     NULL::text,
-    t.amount::numeric,
-    t.amount::numeric,
-    NULL::numeric,
-    NULL::numeric,
+    CASE
+      WHEN lower(replace(pm.token0::text, '0x', '')) = cfg.usd_token_address THEN t.amount1::numeric
+      WHEN lower(replace(pm.token1::text, '0x', '')) = cfg.usd_token_address THEN t.amount0::numeric
+      ELSE NULL::numeric
+    END,
+    CASE
+      WHEN lower(replace(pm.token0::text, '0x', '')) = cfg.usd_token_address THEN t.amount1::numeric
+      WHEN lower(replace(pm.token1::text, '0x', '')) = cfg.usd_token_address THEN t.amount0::numeric
+      ELSE NULL::numeric
+    END,
+    CASE
+      WHEN lower(replace(pm.token0::text, '0x', '')) = cfg.usd_token_address THEN t.amount0::numeric / power(10::numeric, cfg.usd_token_decimals)
+      WHEN lower(replace(pm.token1::text, '0x', '')) = cfg.usd_token_address THEN t.amount1::numeric / power(10::numeric, cfg.usd_token_decimals)
+      ELSE NULL::numeric
+    END,
+    CASE
+      WHEN lower(replace(pm.token0::text, '0x', '')) = cfg.usd_token_address THEN t.amount0::numeric
+      WHEN lower(replace(pm.token1::text, '0x', '')) = cfg.usd_token_address THEN t.amount1::numeric
+      ELSE NULL::numeric
+    END,
     NULL::numeric,
     NULL::numeric,
     t.pool::text,
+    t.amount::numeric,
+    t.amount::numeric,
     t.amount0::numeric,
     t.amount1::numeric,
     NULL::text,
@@ -480,6 +747,116 @@ WITH activity_base AS (
     NULL::numeric,
     NULL::numeric
   FROM "raw_uniswap_v3_burn" t
+  CROSS JOIN cfg
+  LEFT JOIN LATERAL (
+    SELECT p.token0, p.token1
+    FROM "raw_uniswap_v3_pool_created" p
+    WHERE lower(p.pool) = lower(t.pool)
+    ORDER BY p.evt_block_number DESC, p.evt_index DESC
+    LIMIT 1
+  ) pm ON TRUE
+
+  UNION ALL
+
+  SELECT
+    'lifecycle'::text,
+    'token_created'::text,
+    t.evt_block_number::numeric,
+    t.evt_block_time,
+    t.evt_tx_hash::text,
+    t.evt_index::numeric,
+    t.token_id::text,
+    t.token_id::text,
+    t.token_address::text,
+    NULL::text,
+    NULL::text,
+    NULL::text,
+    NULL::numeric,
+    NULL::numeric,
+    NULL::numeric,
+    NULL::numeric,
+    NULL::numeric,
+    NULL::numeric,
+    NULL::text,
+    NULL::numeric,
+    NULL::numeric,
+    NULL::numeric,
+    NULL::numeric,
+    NULL::text,
+    NULL::numeric,
+    NULL::numeric,
+    NULL::boolean,
+    NULL::numeric,
+    NULL::numeric
+  FROM "raw_registry_token_created" t
+
+  UNION ALL
+
+  SELECT
+    'lifecycle'::text,
+    'token_registered'::text,
+    t.evt_block_number::numeric,
+    t.evt_block_time,
+    t.evt_tx_hash::text,
+    t.evt_index::numeric,
+    t.token_id::text,
+    t.token_id::text,
+    t.token_address::text,
+    NULL::text,
+    NULL::text,
+    NULL::text,
+    NULL::numeric,
+    NULL::numeric,
+    NULL::numeric,
+    NULL::numeric,
+    NULL::numeric,
+    NULL::numeric,
+    NULL::text,
+    NULL::numeric,
+    NULL::numeric,
+    NULL::numeric,
+    NULL::numeric,
+    NULL::text,
+    NULL::numeric,
+    NULL::numeric,
+    NULL::boolean,
+    NULL::numeric,
+    NULL::numeric
+  FROM "raw_registry_token_registered" t
+
+  UNION ALL
+
+  SELECT
+    'lifecycle'::text,
+    'external_token_created'::text,
+    t.evt_block_number::numeric,
+    t.evt_block_time,
+    t.evt_tx_hash::text,
+    t.evt_index::numeric,
+    t.token_id::text,
+    t.token_id::text,
+    t.token_address::text,
+    NULL::text,
+    NULL::text,
+    NULL::text,
+    NULL::numeric,
+    NULL::numeric,
+    NULL::numeric,
+    NULL::numeric,
+    NULL::numeric,
+    NULL::numeric,
+    NULL::text,
+    NULL::numeric,
+    NULL::numeric,
+    NULL::numeric,
+    NULL::numeric,
+    NULL::text,
+    NULL::numeric,
+    NULL::numeric,
+    NULL::boolean,
+    NULL::numeric,
+    NULL::numeric
+  FROM "raw_registry_external_token_created" t
 
   UNION ALL
 
@@ -505,6 +882,8 @@ WITH activity_base AS (
     NULL::text,
     NULL::numeric,
     NULL::numeric,
+    NULL::numeric,
+    NULL::numeric,
     NULL::text,
     NULL::numeric,
     NULL::numeric,
@@ -512,10 +891,6 @@ WITH activity_base AS (
     t.final_supply::numeric,
     t.final_reserves::numeric
   FROM "raw_launchpad_graduation" t
-),
-cfg AS (
-  SELECT COALESCE(MAX(CASE WHEN key = 'default_token_decimals' THEN value END)::numeric, 18::numeric) AS default_token_decimals
-  FROM "cfg_indexer_config"
 ),
 activity_with_decimals AS (
   SELECT
@@ -570,6 +945,698 @@ CREATE OR REPLACE VIEW "vw_token_activity_desc" AS
 SELECT *
 FROM "vw_token_activity"
 ORDER BY evt_block_number DESC, evt_index DESC;
+
+DROP VIEW IF EXISTS public.vw_token_stats_current;
+DROP VIEW IF EXISTS indexer.vw_token_stats_current;
+DROP VIEW IF EXISTS "vw_token_market_current";
+
+CREATE VIEW "vw_token_market_current" AS
+WITH latest_trade AS (
+  SELECT DISTINCT ON (t.token_layer_id)
+    t.token_layer_id,
+    t.token_address,
+    t.venue,
+    t.evt_block_number,
+    t.evt_block_time,
+    t.price_usd,
+    t.market_cap_usd
+  FROM "agg_token_trade" t
+  WHERE t.token_layer_id IS NOT NULL
+    AND t.token_layer_id <> ''
+  ORDER BY t.token_layer_id, t.evt_block_time DESC, t.evt_block_number DESC, t.evt_index DESC
+),
+cfg AS (
+  SELECT
+    COALESCE(MAX(CASE WHEN key = 'usd_token_decimals' THEN value::numeric END), 6::numeric) AS usd_token_decimals,
+    COALESCE(MAX(CASE WHEN key = 'default_token_decimals' THEN value::numeric END), 18::numeric) AS default_token_decimals
+  FROM "cfg_indexer_config"
+),
+holder_counts AS (
+  SELECT
+    b.token_layer_id,
+    COUNT(*)::numeric AS holder_count
+  FROM "cur_wallet_token_balance" b
+  WHERE b.token_layer_id IS NOT NULL
+    AND b.token_layer_id <> ''
+    AND b.balance > 0
+  GROUP BY b.token_layer_id
+)
+SELECT
+  d.token_layer_id,
+  COALESCE(lt.token_address, d.token_address) AS token_address,
+  lt.price_usd,
+  lt.market_cap_usd,
+  CASE
+    WHEN lt.market_cap_usd IS NULL OR mc5m.market_cap_usd IS NULL OR mc5m.market_cap_usd = 0 THEN 0::numeric
+    ELSE ((lt.market_cap_usd - mc5m.market_cap_usd) / mc5m.market_cap_usd) * 100
+  END AS market_cap_change_5m_pct,
+  CASE
+    WHEN lt.market_cap_usd IS NULL OR mc6h.market_cap_usd IS NULL OR mc6h.market_cap_usd = 0 THEN 0::numeric
+    ELSE ((lt.market_cap_usd - mc6h.market_cap_usd) / mc6h.market_cap_usd) * 100
+  END AS market_cap_change_6h_pct,
+  CASE
+    WHEN lt.market_cap_usd IS NULL OR mc24h.market_cap_usd IS NULL OR mc24h.market_cap_usd = 0 THEN 0::numeric
+    ELSE ((lt.market_cap_usd - mc24h.market_cap_usd) / mc24h.market_cap_usd) * 100
+  END AS market_cap_change_24h_pct,
+  CASE
+    WHEN lt.market_cap_usd IS NULL OR mc5m.market_cap_usd IS NULL THEN 0::numeric
+    ELSE lt.market_cap_usd - mc5m.market_cap_usd
+  END AS market_cap_change_5m_abs,
+  CASE
+    WHEN lt.market_cap_usd IS NULL OR mc1h.market_cap_usd IS NULL OR mc1h.market_cap_usd = 0 THEN 0::numeric
+    ELSE ((lt.market_cap_usd - mc1h.market_cap_usd) / mc1h.market_cap_usd) * 100
+  END AS market_cap_change_1h_pct,
+  CASE
+    WHEN lt.market_cap_usd IS NULL OR mc1h.market_cap_usd IS NULL THEN 0::numeric
+    ELSE lt.market_cap_usd - mc1h.market_cap_usd
+  END AS market_cap_change_1h_abs,
+  CASE
+    WHEN lt.market_cap_usd IS NULL OR mc6h.market_cap_usd IS NULL THEN 0::numeric
+    ELSE lt.market_cap_usd - mc6h.market_cap_usd
+  END AS market_cap_change_6h_abs,
+  CASE
+    WHEN lt.market_cap_usd IS NULL OR mc24h.market_cap_usd IS NULL THEN 0::numeric
+    ELSE lt.market_cap_usd - mc24h.market_cap_usd
+  END AS market_cap_change_24h_abs,
+  CASE
+    WHEN lt.price_usd IS NULL OR b5m.price_usd IS NULL OR b5m.price_usd = 0 THEN 0::numeric
+    ELSE ((lt.price_usd - b5m.price_usd) / b5m.price_usd) * 100
+  END AS price_change_5m_pct,
+  CASE
+    WHEN lt.price_usd IS NULL OR b1h.price_usd IS NULL OR b1h.price_usd = 0 THEN 0::numeric
+    ELSE ((lt.price_usd - b1h.price_usd) / b1h.price_usd) * 100
+  END AS price_change_1h_pct,
+  CASE
+    WHEN lt.price_usd IS NULL OR b6h.price_usd IS NULL OR b6h.price_usd = 0 THEN 0::numeric
+    ELSE ((lt.price_usd - b6h.price_usd) / b6h.price_usd) * 100
+  END AS price_change_6h_pct,
+  CASE
+    WHEN lt.price_usd IS NULL OR b24h.price_usd IS NULL OR b24h.price_usd = 0 THEN 0::numeric
+    ELSE ((lt.price_usd - b24h.price_usd) / b24h.price_usd) * 100
+  END AS price_change_24h_pct,
+  CASE
+    WHEN lt.price_usd IS NULL OR b5m.price_usd IS NULL THEN 0::numeric
+    ELSE lt.price_usd - b5m.price_usd
+  END AS price_change_5m_abs,
+  CASE
+    WHEN lt.price_usd IS NULL OR b1h.price_usd IS NULL THEN 0::numeric
+    ELSE lt.price_usd - b1h.price_usd
+  END AS price_change_1h_abs,
+  CASE
+    WHEN lt.price_usd IS NULL OR b6h.price_usd IS NULL THEN 0::numeric
+    ELSE lt.price_usd - b6h.price_usd
+  END AS price_change_6h_abs,
+  CASE
+    WHEN lt.price_usd IS NULL OR b24h.price_usd IS NULL THEN 0::numeric
+    ELSE lt.price_usd - b24h.price_usd
+  END AS price_change_24h_abs,
+  COALESCE(v5m.volume_usd, 0::numeric) AS volume_usd_5m,
+  COALESCE(v1h.volume_usd, 0::numeric) AS volume_usd_1h,
+  COALESCE(v6h.volume_usd, 0::numeric) AS volume_usd_6h,
+  COALESCE(v24h.volume_usd, 0::numeric) AS volume_usd_24h,
+  COALESCE(v5m.volume_usd, 0::numeric) - COALESCE(v5m_prev.volume_usd, 0::numeric) AS volume_change_5m_abs,
+  COALESCE(v1h.volume_usd, 0::numeric) - COALESCE(v1h_prev.volume_usd, 0::numeric) AS volume_change_1h_abs,
+  COALESCE(v6h.volume_usd, 0::numeric) - COALESCE(v6h_prev.volume_usd, 0::numeric) AS volume_change_6h_abs,
+  COALESCE(v24h.volume_usd, 0::numeric) - COALESCE(v24h_prev.volume_usd, 0::numeric) AS volume_change_24h_abs,
+  CASE
+    WHEN COALESCE(v5m_prev.volume_usd, 0::numeric) = 0 THEN 0::numeric
+    ELSE ((COALESCE(v5m.volume_usd, 0::numeric) - COALESCE(v5m_prev.volume_usd, 0::numeric)) / v5m_prev.volume_usd) * 100
+  END AS volume_change_5m_pct,
+  CASE
+    WHEN COALESCE(v1h_prev.volume_usd, 0::numeric) = 0 THEN 0::numeric
+    ELSE ((COALESCE(v1h.volume_usd, 0::numeric) - COALESCE(v1h_prev.volume_usd, 0::numeric)) / v1h_prev.volume_usd) * 100
+  END AS volume_change_1h_pct,
+  CASE
+    WHEN COALESCE(v6h_prev.volume_usd, 0::numeric) = 0 THEN 0::numeric
+    ELSE ((COALESCE(v6h.volume_usd, 0::numeric) - COALESCE(v6h_prev.volume_usd, 0::numeric)) / v6h_prev.volume_usd) * 100
+  END AS volume_change_6h_pct,
+  CASE
+    WHEN COALESCE(v24h_prev.volume_usd, 0::numeric) = 0 THEN 0::numeric
+    ELSE ((COALESCE(v24h.volume_usd, 0::numeric) - COALESCE(v24h_prev.volume_usd, 0::numeric)) / v24h_prev.volume_usd) * 100
+  END AS volume_change_24h_pct,
+  COALESCE(h.holder_count, 0::numeric) AS holder_count,
+  COALESCE(h.holder_count, 0::numeric) - COALESCE(h5m.holder_count, 0::numeric) AS holder_count_change_5m_abs,
+  COALESCE(h.holder_count, 0::numeric) - COALESCE(h1h.holder_count, 0::numeric) AS holder_count_change_1h_abs,
+  COALESCE(h.holder_count, 0::numeric) - COALESCE(h6h.holder_count, 0::numeric) AS holder_count_change_6h_abs,
+  COALESCE(h.holder_count, 0::numeric) - COALESCE(h24h.holder_count, 0::numeric) AS holder_count_change_24h_abs,
+  CASE
+    WHEN COALESCE(h5m.holder_count, 0::numeric) = 0 THEN 0::numeric
+    ELSE ((COALESCE(h.holder_count, 0::numeric) - COALESCE(h5m.holder_count, 0::numeric)) / h5m.holder_count) * 100
+  END AS holder_count_change_5m_pct,
+  CASE
+    WHEN COALESCE(h1h.holder_count, 0::numeric) = 0 THEN 0::numeric
+    ELSE ((COALESCE(h.holder_count, 0::numeric) - COALESCE(h1h.holder_count, 0::numeric)) / h1h.holder_count) * 100
+  END AS holder_count_change_1h_pct,
+  CASE
+    WHEN COALESCE(h6h.holder_count, 0::numeric) = 0 THEN 0::numeric
+    ELSE ((COALESCE(h.holder_count, 0::numeric) - COALESCE(h6h.holder_count, 0::numeric)) / h6h.holder_count) * 100
+  END AS holder_count_change_6h_pct,
+  CASE
+    WHEN COALESCE(h24h.holder_count, 0::numeric) = 0 THEN 0::numeric
+    ELSE ((COALESCE(h.holder_count, 0::numeric) - COALESCE(h24h.holder_count, 0::numeric)) / h24h.holder_count) * 100
+  END AS holder_count_change_24h_pct,
+  lt.evt_block_number,
+  now() AS updated_at,
+  lt.evt_block_time AS last_trade_at,
+  lt.venue AS last_trade_venue,
+  lp.price AS launchpad_price_usd,
+  CASE
+    WHEN lp.supply IS NULL THEN NULL::numeric
+    ELSE lp.supply / power(10::numeric, COALESCE(d.decimals, cfg.default_token_decimals))
+  END AS launchpad_supply,
+  lp.supply AS launchpad_supply_raw,
+  CASE
+    WHEN lp.tokens_left IS NULL THEN NULL::numeric
+    ELSE lp.tokens_left / power(10::numeric, COALESCE(d.decimals, cfg.default_token_decimals))
+  END AS launchpad_tokens_left,
+  lp.tokens_left AS launchpad_tokens_left_raw,
+  CASE
+    WHEN lp.liquidity_wei IS NULL THEN NULL::numeric
+    ELSE lp.liquidity_wei / power(10::numeric, 18::numeric)
+  END AS launchpad_liquidity_usd,
+  lp.liquidity_wei AS launchpad_liquidity_usd_raw,
+  CASE
+    WHEN lp.supply IS NULL OR lp.tokens_left IS NULL OR (lp.supply + lp.tokens_left) = 0 THEN NULL::numeric
+    ELSE (lp.supply / (lp.supply + lp.tokens_left)) * 100
+  END AS launchpad_progress_pct,
+  COALESCE(
+    CASE
+      WHEN lp.supply IS NULL OR lp.tokens_left IS NULL OR (lp.supply + lp.tokens_left) = 0 THEN NULL::numeric
+      ELSE (lp.supply / (lp.supply + lp.tokens_left)) * 100
+    END,
+    0::numeric
+  ) - COALESCE(lp5m.launchpad_progress_pct, 0::numeric) AS launchpad_progress_change_5m_abs,
+  COALESCE(
+    CASE
+      WHEN lp.supply IS NULL OR lp.tokens_left IS NULL OR (lp.supply + lp.tokens_left) = 0 THEN NULL::numeric
+      ELSE (lp.supply / (lp.supply + lp.tokens_left)) * 100
+    END,
+    0::numeric
+  ) - COALESCE(lp1h.launchpad_progress_pct, 0::numeric) AS launchpad_progress_change_1h_abs,
+  COALESCE(
+    CASE
+      WHEN lp.supply IS NULL OR lp.tokens_left IS NULL OR (lp.supply + lp.tokens_left) = 0 THEN NULL::numeric
+      ELSE (lp.supply / (lp.supply + lp.tokens_left)) * 100
+    END,
+    0::numeric
+  ) - COALESCE(lp6h.launchpad_progress_pct, 0::numeric) AS launchpad_progress_change_6h_abs,
+  COALESCE(
+    CASE
+      WHEN lp.supply IS NULL OR lp.tokens_left IS NULL OR (lp.supply + lp.tokens_left) = 0 THEN NULL::numeric
+      ELSE (lp.supply / (lp.supply + lp.tokens_left)) * 100
+    END,
+    0::numeric
+  ) - COALESCE(lp24h.launchpad_progress_pct, 0::numeric) AS launchpad_progress_change_24h_abs,
+  CASE
+    WHEN COALESCE(lp5m.launchpad_progress_pct, 0::numeric) = 0 THEN 0::numeric
+    ELSE (
+      (
+        COALESCE(
+          CASE
+            WHEN lp.supply IS NULL OR lp.tokens_left IS NULL OR (lp.supply + lp.tokens_left) = 0 THEN NULL::numeric
+            ELSE (lp.supply / (lp.supply + lp.tokens_left)) * 100
+          END,
+          0::numeric
+        ) - lp5m.launchpad_progress_pct
+      ) / lp5m.launchpad_progress_pct
+    ) * 100
+  END AS launchpad_progress_change_5m_pct,
+  CASE
+    WHEN COALESCE(lp1h.launchpad_progress_pct, 0::numeric) = 0 THEN 0::numeric
+    ELSE (
+      (
+        COALESCE(
+          CASE
+            WHEN lp.supply IS NULL OR lp.tokens_left IS NULL OR (lp.supply + lp.tokens_left) = 0 THEN NULL::numeric
+            ELSE (lp.supply / (lp.supply + lp.tokens_left)) * 100
+          END,
+          0::numeric
+        ) - lp1h.launchpad_progress_pct
+      ) / lp1h.launchpad_progress_pct
+    ) * 100
+  END AS launchpad_progress_change_1h_pct,
+  CASE
+    WHEN COALESCE(lp6h.launchpad_progress_pct, 0::numeric) = 0 THEN 0::numeric
+    ELSE (
+      (
+        COALESCE(
+          CASE
+            WHEN lp.supply IS NULL OR lp.tokens_left IS NULL OR (lp.supply + lp.tokens_left) = 0 THEN NULL::numeric
+            ELSE (lp.supply / (lp.supply + lp.tokens_left)) * 100
+          END,
+          0::numeric
+        ) - lp6h.launchpad_progress_pct
+      ) / lp6h.launchpad_progress_pct
+    ) * 100
+  END AS launchpad_progress_change_6h_pct,
+  CASE
+    WHEN COALESCE(lp24h.launchpad_progress_pct, 0::numeric) = 0 THEN 0::numeric
+    ELSE (
+      (
+        COALESCE(
+          CASE
+            WHEN lp.supply IS NULL OR lp.tokens_left IS NULL OR (lp.supply + lp.tokens_left) = 0 THEN NULL::numeric
+            ELSE (lp.supply / (lp.supply + lp.tokens_left)) * 100
+          END,
+          0::numeric
+        ) - lp24h.launchpad_progress_pct
+      ) / lp24h.launchpad_progress_pct
+    ) * 100
+  END AS launchpad_progress_change_24h_pct
+FROM "dim_token" d
+CROSS JOIN cfg
+LEFT JOIN latest_trade lt
+  ON lt.token_layer_id = d.token_layer_id
+LEFT JOIN holder_counts h
+  ON h.token_layer_id = d.token_layer_id
+LEFT JOIN "vw_launchpad_pool_state_latest" lp
+  ON lp.token_id = d.token_layer_id
+LEFT JOIN LATERAL (
+  SELECT COALESCE(
+    (
+      SELECT p.price_usd
+      FROM "agg_token_price_usd" p
+      WHERE p.token_layer_id = d.token_layer_id
+        AND p.evt_block_time <= now() - INTERVAL '5 minute'
+      ORDER BY p.evt_block_time DESC, p.evt_block_number DESC, p.evt_index DESC
+      LIMIT 1
+    ),
+    (
+      SELECT p.price_usd
+      FROM "agg_token_price_usd" p
+      WHERE p.token_layer_id = d.token_layer_id
+        AND p.evt_block_time > now() - INTERVAL '5 minute'
+        AND p.evt_block_time <= now()
+      ORDER BY p.evt_block_time ASC, p.evt_block_number ASC, p.evt_index ASC
+      LIMIT 1
+    )
+  ) AS price_usd
+) b5m ON TRUE
+LEFT JOIN LATERAL (
+  SELECT COALESCE(
+    (
+      SELECT p.price_usd
+      FROM "agg_token_price_usd" p
+      WHERE p.token_layer_id = d.token_layer_id
+        AND p.evt_block_time <= now() - INTERVAL '1 hour'
+      ORDER BY p.evt_block_time DESC, p.evt_block_number DESC, p.evt_index DESC
+      LIMIT 1
+    ),
+    (
+      SELECT p.price_usd
+      FROM "agg_token_price_usd" p
+      WHERE p.token_layer_id = d.token_layer_id
+        AND p.evt_block_time > now() - INTERVAL '1 hour'
+        AND p.evt_block_time <= now()
+      ORDER BY p.evt_block_time ASC, p.evt_block_number ASC, p.evt_index ASC
+      LIMIT 1
+    )
+  ) AS price_usd
+) b1h ON TRUE
+LEFT JOIN LATERAL (
+  SELECT COALESCE(
+    (
+      SELECT p.price_usd
+      FROM "agg_token_price_usd" p
+      WHERE p.token_layer_id = d.token_layer_id
+        AND p.evt_block_time <= now() - INTERVAL '6 hour'
+      ORDER BY p.evt_block_time DESC, p.evt_block_number DESC, p.evt_index DESC
+      LIMIT 1
+    ),
+    (
+      SELECT p.price_usd
+      FROM "agg_token_price_usd" p
+      WHERE p.token_layer_id = d.token_layer_id
+        AND p.evt_block_time > now() - INTERVAL '6 hour'
+        AND p.evt_block_time <= now()
+      ORDER BY p.evt_block_time ASC, p.evt_block_number ASC, p.evt_index ASC
+      LIMIT 1
+    )
+  ) AS price_usd
+) b6h ON TRUE
+LEFT JOIN LATERAL (
+  SELECT COALESCE(
+    (
+      SELECT p.price_usd
+      FROM "agg_token_price_usd" p
+      WHERE p.token_layer_id = d.token_layer_id
+        AND p.evt_block_time <= now() - INTERVAL '24 hour'
+      ORDER BY p.evt_block_time DESC, p.evt_block_number DESC, p.evt_index DESC
+      LIMIT 1
+    ),
+    (
+      SELECT p.price_usd
+      FROM "agg_token_price_usd" p
+      WHERE p.token_layer_id = d.token_layer_id
+        AND p.evt_block_time > now() - INTERVAL '24 hour'
+        AND p.evt_block_time <= now()
+      ORDER BY p.evt_block_time ASC, p.evt_block_number ASC, p.evt_index ASC
+      LIMIT 1
+    )
+  ) AS price_usd
+) b24h ON TRUE
+LEFT JOIN LATERAL (
+  SELECT COALESCE(
+    (
+      SELECT t.market_cap_usd
+      FROM "agg_token_trade" t
+      WHERE t.token_layer_id = d.token_layer_id
+        AND t.evt_block_time <= now() - INTERVAL '5 minute'
+      ORDER BY t.evt_block_time DESC, t.evt_block_number DESC, t.evt_index DESC
+      LIMIT 1
+    ),
+    (
+      SELECT t.market_cap_usd
+      FROM "agg_token_trade" t
+      WHERE t.token_layer_id = d.token_layer_id
+        AND t.evt_block_time > now() - INTERVAL '5 minute'
+        AND t.evt_block_time <= now()
+      ORDER BY t.evt_block_time ASC, t.evt_block_number ASC, t.evt_index ASC
+      LIMIT 1
+    )
+  ) AS market_cap_usd
+) mc5m ON TRUE
+LEFT JOIN LATERAL (
+  SELECT COALESCE(
+    (
+      SELECT t.market_cap_usd
+      FROM "agg_token_trade" t
+      WHERE t.token_layer_id = d.token_layer_id
+        AND t.evt_block_time <= now() - INTERVAL '1 hour'
+      ORDER BY t.evt_block_time DESC, t.evt_block_number DESC, t.evt_index DESC
+      LIMIT 1
+    ),
+    (
+      SELECT t.market_cap_usd
+      FROM "agg_token_trade" t
+      WHERE t.token_layer_id = d.token_layer_id
+        AND t.evt_block_time > now() - INTERVAL '1 hour'
+        AND t.evt_block_time <= now()
+      ORDER BY t.evt_block_time ASC, t.evt_block_number ASC, t.evt_index ASC
+      LIMIT 1
+    )
+  ) AS market_cap_usd
+) mc1h ON TRUE
+LEFT JOIN LATERAL (
+  SELECT COALESCE(
+    (
+      SELECT t.market_cap_usd
+      FROM "agg_token_trade" t
+      WHERE t.token_layer_id = d.token_layer_id
+        AND t.evt_block_time <= now() - INTERVAL '6 hour'
+      ORDER BY t.evt_block_time DESC, t.evt_block_number DESC, t.evt_index DESC
+      LIMIT 1
+    ),
+    (
+      SELECT t.market_cap_usd
+      FROM "agg_token_trade" t
+      WHERE t.token_layer_id = d.token_layer_id
+        AND t.evt_block_time > now() - INTERVAL '6 hour'
+        AND t.evt_block_time <= now()
+      ORDER BY t.evt_block_time ASC, t.evt_block_number ASC, t.evt_index ASC
+      LIMIT 1
+    )
+  ) AS market_cap_usd
+) mc6h ON TRUE
+LEFT JOIN LATERAL (
+  SELECT COALESCE(
+    (
+      SELECT t.market_cap_usd
+      FROM "agg_token_trade" t
+      WHERE t.token_layer_id = d.token_layer_id
+        AND t.evt_block_time <= now() - INTERVAL '24 hour'
+      ORDER BY t.evt_block_time DESC, t.evt_block_number DESC, t.evt_index DESC
+      LIMIT 1
+    ),
+    (
+      SELECT t.market_cap_usd
+      FROM "agg_token_trade" t
+      WHERE t.token_layer_id = d.token_layer_id
+        AND t.evt_block_time > now() - INTERVAL '24 hour'
+        AND t.evt_block_time <= now()
+      ORDER BY t.evt_block_time ASC, t.evt_block_number ASC, t.evt_index ASC
+      LIMIT 1
+    )
+  ) AS market_cap_usd
+) mc24h ON TRUE
+LEFT JOIN LATERAL (
+  SELECT SUM(t.usd_amount)::numeric AS volume_usd
+  FROM "agg_token_trade" t
+  WHERE t.token_layer_id = d.token_layer_id
+    AND t.evt_block_time > now() - INTERVAL '5 minute'
+    AND t.evt_block_time <= now()
+) v5m ON TRUE
+LEFT JOIN LATERAL (
+  SELECT SUM(t.usd_amount)::numeric AS volume_usd
+  FROM "agg_token_trade" t
+  WHERE t.token_layer_id = d.token_layer_id
+    AND t.evt_block_time > now() - INTERVAL '10 minute'
+    AND t.evt_block_time <= now() - INTERVAL '5 minute'
+) v5m_prev ON TRUE
+LEFT JOIN LATERAL (
+  SELECT SUM(t.usd_amount)::numeric AS volume_usd
+  FROM "agg_token_trade" t
+  WHERE t.token_layer_id = d.token_layer_id
+    AND t.evt_block_time > now() - INTERVAL '1 hour'
+    AND t.evt_block_time <= now()
+) v1h ON TRUE
+LEFT JOIN LATERAL (
+  SELECT SUM(t.usd_amount)::numeric AS volume_usd
+  FROM "agg_token_trade" t
+  WHERE t.token_layer_id = d.token_layer_id
+    AND t.evt_block_time > now() - INTERVAL '2 hour'
+    AND t.evt_block_time <= now() - INTERVAL '1 hour'
+) v1h_prev ON TRUE
+LEFT JOIN LATERAL (
+  SELECT SUM(t.usd_amount)::numeric AS volume_usd
+  FROM "agg_token_trade" t
+  WHERE t.token_layer_id = d.token_layer_id
+    AND t.evt_block_time > now() - INTERVAL '6 hour'
+    AND t.evt_block_time <= now()
+) v6h ON TRUE
+LEFT JOIN LATERAL (
+  SELECT SUM(t.usd_amount)::numeric AS volume_usd
+  FROM "agg_token_trade" t
+  WHERE t.token_layer_id = d.token_layer_id
+    AND t.evt_block_time > now() - INTERVAL '12 hour'
+    AND t.evt_block_time <= now() - INTERVAL '6 hour'
+) v6h_prev ON TRUE
+LEFT JOIN LATERAL (
+  SELECT SUM(t.usd_amount)::numeric AS volume_usd
+  FROM "agg_token_trade" t
+  WHERE t.token_layer_id = d.token_layer_id
+    AND t.evt_block_time > now() - INTERVAL '24 hour'
+    AND t.evt_block_time <= now()
+) v24h ON TRUE
+LEFT JOIN LATERAL (
+  SELECT SUM(t.usd_amount)::numeric AS volume_usd
+  FROM "agg_token_trade" t
+  WHERE t.token_layer_id = d.token_layer_id
+    AND t.evt_block_time > now() - INTERVAL '48 hour'
+    AND t.evt_block_time <= now() - INTERVAL '24 hour'
+) v24h_prev ON TRUE
+LEFT JOIN LATERAL (
+  SELECT COUNT(*)::numeric AS holder_count
+  FROM (
+    SELECT DISTINCT ON (b.wallet)
+      b.wallet,
+      b.balance
+    FROM "agg_wallet_token_balance" b
+    WHERE b.token_layer_id = d.token_layer_id
+      AND b.evt_block_time <= now() - INTERVAL '5 minute'
+    ORDER BY b.wallet, b.evt_block_time DESC, b.evt_block_number DESC
+  ) x
+  WHERE x.balance > 0
+) h5m ON TRUE
+LEFT JOIN LATERAL (
+  SELECT COUNT(*)::numeric AS holder_count
+  FROM (
+    SELECT DISTINCT ON (b.wallet)
+      b.wallet,
+      b.balance
+    FROM "agg_wallet_token_balance" b
+    WHERE b.token_layer_id = d.token_layer_id
+      AND b.evt_block_time <= now() - INTERVAL '1 hour'
+    ORDER BY b.wallet, b.evt_block_time DESC, b.evt_block_number DESC
+  ) x
+  WHERE x.balance > 0
+) h1h ON TRUE
+LEFT JOIN LATERAL (
+  SELECT CASE
+    WHEN s.supply IS NULL OR s.tokens_left IS NULL OR (s.supply + s.tokens_left) = 0 THEN NULL::numeric
+    ELSE (s.supply / (s.supply + s.tokens_left)) * 100
+  END AS launchpad_progress_pct
+  FROM (
+    SELECT
+      x.supply,
+      x.tokens_left,
+      x.evt_block_time,
+      x.evt_block_number,
+      x.evt_index
+    FROM (
+      SELECT
+        b.token_id,
+        b.supply,
+        b.tokens_left,
+        b.evt_block_time,
+        b.evt_block_number,
+        b.evt_index
+      FROM "raw_launchpad_buy" b
+      UNION ALL
+      SELECT
+        s.token_id,
+        s.supply,
+        s.tokens_left,
+        s.evt_block_time,
+        s.evt_block_number,
+        s.evt_index
+      FROM "raw_launchpad_sell" s
+    ) x
+    WHERE x.token_id = d.token_layer_id
+      AND x.evt_block_time <= now() - INTERVAL '5 minute'
+    ORDER BY x.evt_block_time DESC, x.evt_block_number DESC, x.evt_index DESC
+    LIMIT 1
+  ) s
+) lp5m ON TRUE
+LEFT JOIN LATERAL (
+  SELECT COUNT(*)::numeric AS holder_count
+  FROM (
+    SELECT DISTINCT ON (b.wallet)
+      b.wallet,
+      b.balance
+    FROM "agg_wallet_token_balance" b
+    WHERE b.token_layer_id = d.token_layer_id
+      AND b.evt_block_time <= now() - INTERVAL '6 hour'
+    ORDER BY b.wallet, b.evt_block_time DESC, b.evt_block_number DESC
+  ) x
+  WHERE x.balance > 0
+) h6h ON TRUE
+LEFT JOIN LATERAL (
+  SELECT COUNT(*)::numeric AS holder_count
+  FROM (
+    SELECT DISTINCT ON (b.wallet)
+      b.wallet,
+      b.balance
+    FROM "agg_wallet_token_balance" b
+    WHERE b.token_layer_id = d.token_layer_id
+      AND b.evt_block_time <= now() - INTERVAL '24 hour'
+    ORDER BY b.wallet, b.evt_block_time DESC, b.evt_block_number DESC
+  ) x
+  WHERE x.balance > 0
+) h24h ON TRUE
+LEFT JOIN LATERAL (
+  SELECT CASE
+    WHEN s.supply IS NULL OR s.tokens_left IS NULL OR (s.supply + s.tokens_left) = 0 THEN NULL::numeric
+    ELSE (s.supply / (s.supply + s.tokens_left)) * 100
+  END AS launchpad_progress_pct
+  FROM (
+    SELECT
+      x.supply,
+      x.tokens_left,
+      x.evt_block_time,
+      x.evt_block_number,
+      x.evt_index
+    FROM (
+      SELECT
+        b.token_id,
+        b.supply,
+        b.tokens_left,
+        b.evt_block_time,
+        b.evt_block_number,
+        b.evt_index
+      FROM "raw_launchpad_buy" b
+      UNION ALL
+      SELECT
+        s.token_id,
+        s.supply,
+        s.tokens_left,
+        s.evt_block_time,
+        s.evt_block_number,
+        s.evt_index
+      FROM "raw_launchpad_sell" s
+    ) x
+    WHERE x.token_id = d.token_layer_id
+      AND x.evt_block_time <= now() - INTERVAL '1 hour'
+    ORDER BY x.evt_block_time DESC, x.evt_block_number DESC, x.evt_index DESC
+    LIMIT 1
+  ) s
+) lp1h ON TRUE
+LEFT JOIN LATERAL (
+  SELECT CASE
+    WHEN s.supply IS NULL OR s.tokens_left IS NULL OR (s.supply + s.tokens_left) = 0 THEN NULL::numeric
+    ELSE (s.supply / (s.supply + s.tokens_left)) * 100
+  END AS launchpad_progress_pct
+  FROM (
+    SELECT
+      x.supply,
+      x.tokens_left,
+      x.evt_block_time,
+      x.evt_block_number,
+      x.evt_index
+    FROM (
+      SELECT
+        b.token_id,
+        b.supply,
+        b.tokens_left,
+        b.evt_block_time,
+        b.evt_block_number,
+        b.evt_index
+      FROM "raw_launchpad_buy" b
+      UNION ALL
+      SELECT
+        s.token_id,
+        s.supply,
+        s.tokens_left,
+        s.evt_block_time,
+        s.evt_block_number,
+        s.evt_index
+      FROM "raw_launchpad_sell" s
+    ) x
+    WHERE x.token_id = d.token_layer_id
+      AND x.evt_block_time <= now() - INTERVAL '6 hour'
+    ORDER BY x.evt_block_time DESC, x.evt_block_number DESC, x.evt_index DESC
+    LIMIT 1
+  ) s
+) lp6h ON TRUE
+LEFT JOIN LATERAL (
+  SELECT CASE
+    WHEN s.supply IS NULL OR s.tokens_left IS NULL OR (s.supply + s.tokens_left) = 0 THEN NULL::numeric
+    ELSE (s.supply / (s.supply + s.tokens_left)) * 100
+  END AS launchpad_progress_pct
+  FROM (
+    SELECT
+      x.supply,
+      x.tokens_left,
+      x.evt_block_time,
+      x.evt_block_number,
+      x.evt_index
+    FROM (
+      SELECT
+        b.token_id,
+        b.supply,
+        b.tokens_left,
+        b.evt_block_time,
+        b.evt_block_number,
+        b.evt_index
+      FROM "raw_launchpad_buy" b
+      UNION ALL
+      SELECT
+        s.token_id,
+        s.supply,
+        s.tokens_left,
+        s.evt_block_time,
+        s.evt_block_number,
+        s.evt_index
+      FROM "raw_launchpad_sell" s
+    ) x
+    WHERE x.token_id = d.token_layer_id
+      AND x.evt_block_time <= now() - INTERVAL '24 hour'
+    ORDER BY x.evt_block_time DESC, x.evt_block_number DESC, x.evt_index DESC
+    LIMIT 1
+  ) s
+) lp24h ON TRUE
+WHERE d.token_layer_id IS NOT NULL
+  AND d.token_layer_id <> '';
 
 CREATE TABLE IF NOT EXISTS "cur_token_stats" (
   "token_layer_id" TEXT PRIMARY KEY,
@@ -841,23 +1908,88 @@ DROP FUNCTION IF EXISTS "rebuild_fee_balance_currents"();
 
 DROP TABLE IF EXISTS "user_fee_balances_current";
 DROP TABLE IF EXISTS "protocol_fee_balances_current";
+DROP VIEW IF EXISTS public.vw_fee_leaderboard_current;
+DROP VIEW IF EXISTS public.vw_fee_leaderboard_by_chain;
+DROP VIEW IF EXISTS indexer.vw_fee_leaderboard_current;
+DROP VIEW IF EXISTS indexer.vw_fee_leaderboard_by_chain;
+DROP VIEW IF EXISTS "vw_fee_leaderboard_current";
+DROP VIEW IF EXISTS "vw_user_fee_balances_current";
+DROP VIEW IF EXISTS "vw_protocol_fee_balances_current";
 
-CREATE OR REPLACE VIEW "vw_user_fee_balances_current" AS
+CREATE VIEW "vw_user_fee_balances_current" AS
+WITH cfg AS (
+  SELECT COALESCE(MAX(CASE WHEN key = 'usd_token_decimals' THEN value END)::numeric, 6::numeric) AS usd_token_decimals
+  FROM "cfg_indexer_config"
+)
 SELECT
   "account",
   "currency",
-  "balance"::numeric AS balance,
+  ("balance"::numeric / power(10::numeric, cfg.usd_token_decimals)) AS balance,
+  "balance"::numeric AS balance_raw,
   "evt_block_number",
   "evt_block_time"
-FROM "cur_user_fee_balance";
+FROM "cur_user_fee_balance"
+CROSS JOIN cfg;
 
-CREATE OR REPLACE VIEW "vw_protocol_fee_balances_current" AS
+CREATE VIEW "vw_protocol_fee_balances_current" AS
+WITH cfg AS (
+  SELECT COALESCE(MAX(CASE WHEN key = 'usd_token_decimals' THEN value END)::numeric, 6::numeric) AS usd_token_decimals
+  FROM "cfg_indexer_config"
+)
 SELECT
   "currency",
-  "balance"::numeric AS balance,
+  ("balance"::numeric / power(10::numeric, cfg.usd_token_decimals)) AS balance,
+  "balance"::numeric AS balance_raw,
   "evt_block_number",
   "evt_block_time"
-FROM "cur_protocol_fee_balance";
+FROM "cur_protocol_fee_balance"
+CROSS JOIN cfg;
+
+CREATE VIEW "vw_fee_leaderboard_current" AS
+WITH cfg AS (
+  SELECT
+    COALESCE(lower(replace(MAX(CASE WHEN key = 'usd_token_address' THEN value END), '0x', '')), '') AS usd_token_address,
+    COALESCE(MAX(CASE WHEN key = 'usd_token_decimals' THEN value END)::numeric, 6::numeric) AS usd_token_decimals
+  FROM "cfg_indexer_config"
+),
+wallet_balances AS (
+  SELECT
+    lower(b."account") AS wallet,
+    lower(b."currency") AS currency,
+    SUM(b."balance")::numeric AS balance_raw,
+    MAX(b."evt_block_number")::numeric AS evt_block_number,
+    MAX(b."evt_block_time") AS evt_block_time
+  FROM "cur_user_fee_balance" b
+  CROSS JOIN cfg
+  WHERE b."account" IS NOT NULL
+    AND b."account" <> ''
+    AND cfg.usd_token_address <> ''
+    AND lower(replace(b."currency", '0x', '')) = cfg.usd_token_address
+  GROUP BY lower(b."account"), lower(b."currency")
+),
+ranked AS (
+  SELECT
+    wallet,
+    currency,
+    (balance_raw / power(10::numeric, cfg.usd_token_decimals)) AS balance,
+    balance_raw,
+    evt_block_number,
+    evt_block_time,
+    ROW_NUMBER() OVER (
+      ORDER BY balance_raw DESC, evt_block_time DESC NULLS LAST, wallet ASC
+    ) AS rank
+  FROM wallet_balances
+  CROSS JOIN cfg
+)
+SELECT
+  rank,
+  wallet,
+  currency,
+  balance,
+  balance_raw,
+  evt_block_number,
+  evt_block_time
+FROM ranked;
 
 CREATE OR REPLACE VIEW "vw_ip_owner_current" AS
 WITH ranked AS (

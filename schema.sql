@@ -1897,6 +1897,34 @@ CREATE INDEX IF NOT EXISTS "idx_agg_token_trade_venue" ON "agg_token_trade" ("ve
 CREATE INDEX IF NOT EXISTS "idx_agg_token_trade_token_layer_id" ON "agg_token_trade" ("token_layer_id");
 CREATE INDEX IF NOT EXISTS "idx_agg_token_trade_token_decimals" ON "agg_token_trade" ("token_decimals");
 
+CREATE TABLE IF NOT EXISTS "agg_token_candle_1m" (
+  "_pk" TEXT PRIMARY KEY,
+  "_block_number_" NUMERIC,
+  "_block_timestamp_" TIMESTAMP,
+  "token_layer_id" TEXT,
+  "token_address" TEXT,
+  "venue" TEXT,
+  "bucket_start" TIMESTAMP,
+  "bucket_end" TIMESTAMP,
+  "open_price_usd" NUMERIC,
+  "high_price_usd" NUMERIC,
+  "low_price_usd" NUMERIC,
+  "close_price_usd" NUMERIC,
+  "volume_token" NUMERIC,
+  "volume_token_raw" NUMERIC,
+  "volume_usd" NUMERIC,
+  "volume_usd_raw" NUMERIC,
+  "trade_count" NUMERIC,
+  "last_evt_block_number" NUMERIC,
+  "last_evt_block_time" TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS "idx_agg_token_candle_1m_bucket_start" ON "agg_token_candle_1m" ("bucket_start");
+CREATE INDEX IF NOT EXISTS "idx_agg_token_candle_1m_token_layer_id" ON "agg_token_candle_1m" ("token_layer_id");
+CREATE INDEX IF NOT EXISTS "idx_agg_token_candle_1m_token_address" ON "agg_token_candle_1m" ("token_address");
+CREATE INDEX IF NOT EXISTS "idx_agg_token_candle_1m_venue" ON "agg_token_candle_1m" ("venue");
+
+DROP TABLE IF EXISTS "agg_token_candle_1m_fragment";
+
 CREATE TABLE IF NOT EXISTS "agg_token_price_usd" (
   "_pk" TEXT PRIMARY KEY,
   "_block_number_" NUMERIC,

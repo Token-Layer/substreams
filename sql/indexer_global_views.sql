@@ -406,8 +406,8 @@ SELECT
   t.sender,
   t.tick_lower::text AS tick_lower,
   t.tick_upper::text AS tick_upper,
-  t.amount::text AS amount,
-  t.amount::text AS amount_raw,
+  t.amount::text AS liquidity_amount,
+  t.amount::text AS liquidity_amount_raw,
   t.amount0::text AS amount0,
   t.amount0::text AS amount0_raw,
   t.amount1::text AS amount1,
@@ -429,8 +429,8 @@ SELECT
   t.sender,
   t.tick_lower::text AS tick_lower,
   t.tick_upper::text AS tick_upper,
-  t.amount::text AS amount,
-  t.amount::text AS amount_raw,
+  t.amount::text AS liquidity_amount,
+  t.amount::text AS liquidity_amount_raw,
   t.amount0::text AS amount0,
   t.amount0::text AS amount0_raw,
   t.amount1::text AS amount1,
@@ -454,8 +454,8 @@ SELECT
   t.owner,
   t.tick_lower::text AS tick_lower,
   t.tick_upper::text AS tick_upper,
-  t.amount::text AS amount,
-  t.amount::text AS amount_raw,
+  t.amount::text AS liquidity_amount,
+  t.amount::text AS liquidity_amount_raw,
   t.amount0::text AS amount0,
   t.amount0::text AS amount0_raw,
   t.amount1::text AS amount1,
@@ -476,8 +476,8 @@ SELECT
   t.owner,
   t.tick_lower::text AS tick_lower,
   t.tick_upper::text AS tick_upper,
-  t.amount::text AS amount,
-  t.amount::text AS amount_raw,
+  t.amount::text AS liquidity_amount,
+  t.amount::text AS liquidity_amount_raw,
   t.amount0::text AS amount0,
   t.amount0::text AS amount0_raw,
   t.amount1::text AS amount1,
@@ -529,42 +529,199 @@ REVOKE ALL ON TABLE indexer.vw_launchpad_graduations FROM anon;
 REVOKE ALL ON TABLE indexer.vw_launchpad_graduations FROM authenticated;
 GRANT SELECT ON TABLE indexer.vw_launchpad_graduations TO service_role;
 
-CREATE OR REPLACE VIEW indexer.vw_token_stats_current AS
+DROP VIEW IF EXISTS public.vw_token_candles;
+DROP VIEW IF EXISTS public.vw_token_stats_current;
+DROP VIEW IF EXISTS indexer.vw_token_candles;
+DROP VIEW IF EXISTS indexer.vw_token_stats_current;
+
+CREATE VIEW indexer.vw_token_candles AS
+SELECT
+  'base-sepolia'::text AS chain,
+  c.token_layer_id,
+  c.token_address,
+  c.venue,
+  c.candle_interval,
+  c.bucket_start,
+  c.bucket_end,
+  c.open_price_usd::text AS open_price_usd,
+  c.open_price_usd::text AS open_price_usd_raw,
+  c.high_price_usd::text AS high_price_usd,
+  c.high_price_usd::text AS high_price_usd_raw,
+  c.low_price_usd::text AS low_price_usd,
+  c.low_price_usd::text AS low_price_usd_raw,
+  c.close_price_usd::text AS close_price_usd,
+  c.close_price_usd::text AS close_price_usd_raw,
+  c.volume_token::text AS volume_token,
+  c.volume_token::text AS volume_token_raw,
+  c.volume_usd::text AS volume_usd,
+  c.volume_usd::text AS volume_usd_raw,
+  c.trade_count::text AS trade_count,
+  c.trade_count::text AS trade_count_raw
+FROM indexer_evm_base_sepolia.vw_token_candles c
+
+UNION ALL
+
+SELECT
+  'bnb-testnet'::text AS chain,
+  c.token_layer_id,
+  c.token_address,
+  c.venue,
+  c.candle_interval,
+  c.bucket_start,
+  c.bucket_end,
+  c.open_price_usd::text AS open_price_usd,
+  c.open_price_usd::text AS open_price_usd_raw,
+  c.high_price_usd::text AS high_price_usd,
+  c.high_price_usd::text AS high_price_usd_raw,
+  c.low_price_usd::text AS low_price_usd,
+  c.low_price_usd::text AS low_price_usd_raw,
+  c.close_price_usd::text AS close_price_usd,
+  c.close_price_usd::text AS close_price_usd_raw,
+  c.volume_token::text AS volume_token,
+  c.volume_token::text AS volume_token_raw,
+  c.volume_usd::text AS volume_usd,
+  c.volume_usd::text AS volume_usd_raw,
+  c.trade_count::text AS trade_count,
+  c.trade_count::text AS trade_count_raw
+FROM indexer_evm_bnb_testnet.vw_token_candles c;
+
+REVOKE ALL ON TABLE indexer.vw_token_candles FROM anon;
+REVOKE ALL ON TABLE indexer.vw_token_candles FROM authenticated;
+GRANT SELECT ON TABLE indexer.vw_token_candles TO service_role;
+
+CREATE OR REPLACE VIEW indexer.vw_fee_leaderboard_by_chain AS
+SELECT
+  'base-sepolia'::text AS chain,
+  l.rank,
+  l.wallet,
+  l.currency,
+  l.balance::text AS balance,
+  l.balance_raw::text AS balance_raw,
+  l.evt_block_number,
+  l.evt_block_time
+FROM indexer_evm_base_sepolia.vw_fee_leaderboard_current l
+
+UNION ALL
+
+SELECT
+  'bnb-testnet'::text AS chain,
+  l.rank,
+  l.wallet,
+  l.currency,
+  l.balance::text AS balance,
+  l.balance_raw::text AS balance_raw,
+  l.evt_block_number,
+  l.evt_block_time
+FROM indexer_evm_bnb_testnet.vw_fee_leaderboard_current l;
+
+REVOKE ALL ON TABLE indexer.vw_fee_leaderboard_by_chain FROM anon;
+REVOKE ALL ON TABLE indexer.vw_fee_leaderboard_by_chain FROM authenticated;
+GRANT SELECT ON TABLE indexer.vw_fee_leaderboard_by_chain TO service_role;
+
+CREATE OR REPLACE VIEW indexer.vw_fee_leaderboard_current AS
+WITH wallet_balances AS (
+  SELECT
+    wallet,
+    MIN(currency) AS currency,
+    SUM(balance::numeric)::numeric AS balance,
+    SUM(balance_raw::numeric)::numeric AS balance_raw,
+    MAX(evt_block_number)::numeric AS evt_block_number,
+    MAX(evt_block_time) AS evt_block_time
+  FROM indexer.vw_fee_leaderboard_by_chain
+  GROUP BY wallet
+),
+ranked AS (
+  SELECT
+    ROW_NUMBER() OVER (
+      ORDER BY balance_raw DESC, evt_block_time DESC NULLS LAST, wallet ASC
+    ) AS rank,
+    wallet,
+    currency,
+    balance,
+    balance_raw,
+    evt_block_number,
+    evt_block_time
+  FROM wallet_balances
+)
+SELECT
+  rank,
+  wallet,
+  currency,
+  balance::text AS balance,
+  balance_raw::text AS balance_raw,
+  evt_block_number,
+  evt_block_time
+FROM ranked;
+
+REVOKE ALL ON TABLE indexer.vw_fee_leaderboard_current FROM anon;
+REVOKE ALL ON TABLE indexer.vw_fee_leaderboard_current FROM authenticated;
+GRANT SELECT ON TABLE indexer.vw_fee_leaderboard_current TO service_role;
+
+CREATE VIEW indexer.vw_token_stats_current AS
 SELECT
   'base-sepolia'::text AS chain,
   s.token_layer_id,
   s.token_address,
   s.price_usd::text AS price_usd,
-  s.price_usd::text AS price_usd_raw,
+  s.market_cap_usd::text AS market_cap_usd,
+  s.market_cap_change_5m_pct::text AS market_cap_change_5m_pct,
+  s.market_cap_change_5m_abs::text AS market_cap_change_5m_abs,
+  s.market_cap_change_1h_pct::text AS market_cap_change_1h_pct,
+  s.market_cap_change_6h_pct::text AS market_cap_change_6h_pct,
+  s.market_cap_change_24h_pct::text AS market_cap_change_24h_pct,
+  s.market_cap_change_1h_abs::text AS market_cap_change_1h_abs,
+  s.market_cap_change_6h_abs::text AS market_cap_change_6h_abs,
+  s.market_cap_change_24h_abs::text AS market_cap_change_24h_abs,
+  s.price_change_5m_pct::text AS price_change_5m_pct,
   s.price_change_1h_pct::text AS price_change_1h_pct,
-  s.price_change_1h_pct::text AS price_change_1h_pct_raw,
   s.price_change_6h_pct::text AS price_change_6h_pct,
-  s.price_change_6h_pct::text AS price_change_6h_pct_raw,
-  s.price_change_12h_pct::text AS price_change_12h_pct,
-  s.price_change_12h_pct::text AS price_change_12h_pct_raw,
   s.price_change_24h_pct::text AS price_change_24h_pct,
-  s.price_change_24h_pct::text AS price_change_24h_pct_raw,
+  s.price_change_5m_abs::text AS price_change_5m_abs,
   s.price_change_1h_abs::text AS price_change_1h_abs,
-  s.price_change_1h_abs::text AS price_change_1h_abs_raw,
   s.price_change_6h_abs::text AS price_change_6h_abs,
-  s.price_change_6h_abs::text AS price_change_6h_abs_raw,
-  s.price_change_12h_abs::text AS price_change_12h_abs,
-  s.price_change_12h_abs::text AS price_change_12h_abs_raw,
   s.price_change_24h_abs::text AS price_change_24h_abs,
-  s.price_change_24h_abs::text AS price_change_24h_abs_raw,
+  s.volume_usd_5m::text AS volume_usd_5m,
   s.volume_usd_1h::text AS volume_usd_1h,
-  s.volume_usd_1h::text AS volume_usd_1h_raw,
   s.volume_usd_6h::text AS volume_usd_6h,
-  s.volume_usd_6h::text AS volume_usd_6h_raw,
-  s.volume_usd_12h::text AS volume_usd_12h,
-  s.volume_usd_12h::text AS volume_usd_12h_raw,
   s.volume_usd_24h::text AS volume_usd_24h,
-  s.volume_usd_24h::text AS volume_usd_24h_raw,
+  s.volume_change_5m_abs::text AS volume_change_5m_abs,
+  s.volume_change_1h_abs::text AS volume_change_1h_abs,
+  s.volume_change_6h_abs::text AS volume_change_6h_abs,
+  s.volume_change_24h_abs::text AS volume_change_24h_abs,
+  s.volume_change_5m_pct::text AS volume_change_5m_pct,
+  s.volume_change_1h_pct::text AS volume_change_1h_pct,
+  s.volume_change_6h_pct::text AS volume_change_6h_pct,
+  s.volume_change_24h_pct::text AS volume_change_24h_pct,
   s.holder_count::text AS holder_count,
-  s.holder_count::text AS holder_count_raw,
+  s.holder_count_change_5m_abs::text AS holder_count_change_5m_abs,
+  s.holder_count_change_1h_abs::text AS holder_count_change_1h_abs,
+  s.holder_count_change_6h_abs::text AS holder_count_change_6h_abs,
+  s.holder_count_change_24h_abs::text AS holder_count_change_24h_abs,
+  s.holder_count_change_5m_pct::text AS holder_count_change_5m_pct,
+  s.holder_count_change_1h_pct::text AS holder_count_change_1h_pct,
+  s.holder_count_change_6h_pct::text AS holder_count_change_6h_pct,
+  s.holder_count_change_24h_pct::text AS holder_count_change_24h_pct,
+  s.last_trade_at,
+  s.last_trade_venue,
+  s.launchpad_price_usd::text AS launchpad_price_usd,
+  s.launchpad_supply::text AS launchpad_supply,
+  s.launchpad_supply_raw::text AS launchpad_supply_raw,
+  s.launchpad_tokens_left::text AS launchpad_tokens_left,
+  s.launchpad_tokens_left_raw::text AS launchpad_tokens_left_raw,
+  s.launchpad_liquidity_usd::text AS launchpad_liquidity_usd,
+  s.launchpad_liquidity_usd_raw::text AS launchpad_liquidity_usd_raw,
+  s.launchpad_progress_pct::text AS launchpad_progress_pct,
+  s.launchpad_progress_change_5m_abs::text AS launchpad_progress_change_5m_abs,
+  s.launchpad_progress_change_1h_abs::text AS launchpad_progress_change_1h_abs,
+  s.launchpad_progress_change_6h_abs::text AS launchpad_progress_change_6h_abs,
+  s.launchpad_progress_change_24h_abs::text AS launchpad_progress_change_24h_abs,
+  s.launchpad_progress_change_5m_pct::text AS launchpad_progress_change_5m_pct,
+  s.launchpad_progress_change_1h_pct::text AS launchpad_progress_change_1h_pct,
+  s.launchpad_progress_change_6h_pct::text AS launchpad_progress_change_6h_pct,
+  s.launchpad_progress_change_24h_pct::text AS launchpad_progress_change_24h_pct,
   s.evt_block_number,
   s.updated_at
-FROM indexer_evm_base_sepolia.cur_token_stats s
+FROM indexer_evm_base_sepolia.vw_token_market_current s
 
 UNION ALL
 
@@ -573,36 +730,65 @@ SELECT
   s.token_layer_id,
   s.token_address,
   s.price_usd::text AS price_usd,
-  s.price_usd::text AS price_usd_raw,
+  s.market_cap_usd::text AS market_cap_usd,
+  s.market_cap_change_5m_pct::text AS market_cap_change_5m_pct,
+  s.market_cap_change_5m_abs::text AS market_cap_change_5m_abs,
+  s.market_cap_change_1h_pct::text AS market_cap_change_1h_pct,
+  s.market_cap_change_6h_pct::text AS market_cap_change_6h_pct,
+  s.market_cap_change_24h_pct::text AS market_cap_change_24h_pct,
+  s.market_cap_change_1h_abs::text AS market_cap_change_1h_abs,
+  s.market_cap_change_6h_abs::text AS market_cap_change_6h_abs,
+  s.market_cap_change_24h_abs::text AS market_cap_change_24h_abs,
+  s.price_change_5m_pct::text AS price_change_5m_pct,
   s.price_change_1h_pct::text AS price_change_1h_pct,
-  s.price_change_1h_pct::text AS price_change_1h_pct_raw,
   s.price_change_6h_pct::text AS price_change_6h_pct,
-  s.price_change_6h_pct::text AS price_change_6h_pct_raw,
-  s.price_change_12h_pct::text AS price_change_12h_pct,
-  s.price_change_12h_pct::text AS price_change_12h_pct_raw,
   s.price_change_24h_pct::text AS price_change_24h_pct,
-  s.price_change_24h_pct::text AS price_change_24h_pct_raw,
+  s.price_change_5m_abs::text AS price_change_5m_abs,
   s.price_change_1h_abs::text AS price_change_1h_abs,
-  s.price_change_1h_abs::text AS price_change_1h_abs_raw,
   s.price_change_6h_abs::text AS price_change_6h_abs,
-  s.price_change_6h_abs::text AS price_change_6h_abs_raw,
-  s.price_change_12h_abs::text AS price_change_12h_abs,
-  s.price_change_12h_abs::text AS price_change_12h_abs_raw,
   s.price_change_24h_abs::text AS price_change_24h_abs,
-  s.price_change_24h_abs::text AS price_change_24h_abs_raw,
+  s.volume_usd_5m::text AS volume_usd_5m,
   s.volume_usd_1h::text AS volume_usd_1h,
-  s.volume_usd_1h::text AS volume_usd_1h_raw,
   s.volume_usd_6h::text AS volume_usd_6h,
-  s.volume_usd_6h::text AS volume_usd_6h_raw,
-  s.volume_usd_12h::text AS volume_usd_12h,
-  s.volume_usd_12h::text AS volume_usd_12h_raw,
   s.volume_usd_24h::text AS volume_usd_24h,
-  s.volume_usd_24h::text AS volume_usd_24h_raw,
+  s.volume_change_5m_abs::text AS volume_change_5m_abs,
+  s.volume_change_1h_abs::text AS volume_change_1h_abs,
+  s.volume_change_6h_abs::text AS volume_change_6h_abs,
+  s.volume_change_24h_abs::text AS volume_change_24h_abs,
+  s.volume_change_5m_pct::text AS volume_change_5m_pct,
+  s.volume_change_1h_pct::text AS volume_change_1h_pct,
+  s.volume_change_6h_pct::text AS volume_change_6h_pct,
+  s.volume_change_24h_pct::text AS volume_change_24h_pct,
   s.holder_count::text AS holder_count,
-  s.holder_count::text AS holder_count_raw,
+  s.holder_count_change_5m_abs::text AS holder_count_change_5m_abs,
+  s.holder_count_change_1h_abs::text AS holder_count_change_1h_abs,
+  s.holder_count_change_6h_abs::text AS holder_count_change_6h_abs,
+  s.holder_count_change_24h_abs::text AS holder_count_change_24h_abs,
+  s.holder_count_change_5m_pct::text AS holder_count_change_5m_pct,
+  s.holder_count_change_1h_pct::text AS holder_count_change_1h_pct,
+  s.holder_count_change_6h_pct::text AS holder_count_change_6h_pct,
+  s.holder_count_change_24h_pct::text AS holder_count_change_24h_pct,
+  s.last_trade_at,
+  s.last_trade_venue,
+  s.launchpad_price_usd::text AS launchpad_price_usd,
+  s.launchpad_supply::text AS launchpad_supply,
+  s.launchpad_supply_raw::text AS launchpad_supply_raw,
+  s.launchpad_tokens_left::text AS launchpad_tokens_left,
+  s.launchpad_tokens_left_raw::text AS launchpad_tokens_left_raw,
+  s.launchpad_liquidity_usd::text AS launchpad_liquidity_usd,
+  s.launchpad_liquidity_usd_raw::text AS launchpad_liquidity_usd_raw,
+  s.launchpad_progress_pct::text AS launchpad_progress_pct,
+  s.launchpad_progress_change_5m_abs::text AS launchpad_progress_change_5m_abs,
+  s.launchpad_progress_change_1h_abs::text AS launchpad_progress_change_1h_abs,
+  s.launchpad_progress_change_6h_abs::text AS launchpad_progress_change_6h_abs,
+  s.launchpad_progress_change_24h_abs::text AS launchpad_progress_change_24h_abs,
+  s.launchpad_progress_change_5m_pct::text AS launchpad_progress_change_5m_pct,
+  s.launchpad_progress_change_1h_pct::text AS launchpad_progress_change_1h_pct,
+  s.launchpad_progress_change_6h_pct::text AS launchpad_progress_change_6h_pct,
+  s.launchpad_progress_change_24h_pct::text AS launchpad_progress_change_24h_pct,
   s.evt_block_number,
   s.updated_at
-FROM indexer_evm_bnb_testnet.cur_token_stats s;
+FROM indexer_evm_bnb_testnet.vw_token_market_current s;
 
 REVOKE ALL ON TABLE indexer.vw_token_stats_current FROM anon;
 REVOKE ALL ON TABLE indexer.vw_token_stats_current FROM authenticated;
@@ -632,6 +818,8 @@ SELECT
   a.market_cap_usd::text AS market_cap_usd,
   a.market_cap_usd::text AS market_cap_usd_raw,
   a.pool,
+  a.liquidity_amount::text AS liquidity_amount,
+  a.liquidity_amount_raw::text AS liquidity_amount_raw,
   a.amount0_decimal::text AS amount0,
   a.amount0::text AS amount0_raw,
   a.amount1_decimal::text AS amount1,
@@ -676,6 +864,8 @@ SELECT
   a.market_cap_usd::text AS market_cap_usd,
   a.market_cap_usd::text AS market_cap_usd_raw,
   a.pool,
+  a.liquidity_amount::text AS liquidity_amount,
+  a.liquidity_amount_raw::text AS liquidity_amount_raw,
   a.amount0_decimal::text AS amount0,
   a.amount0::text AS amount0_raw,
   a.amount1_decimal::text AS amount1,
@@ -769,6 +959,24 @@ REVOKE ALL ON TABLE public.vw_launchpad_graduations FROM anon;
 REVOKE ALL ON TABLE public.vw_launchpad_graduations FROM authenticated;
 GRANT SELECT ON TABLE public.vw_launchpad_graduations TO service_role;
 
+CREATE VIEW public.vw_token_candles AS
+SELECT * FROM indexer.vw_token_candles;
+REVOKE ALL ON TABLE public.vw_token_candles FROM anon;
+REVOKE ALL ON TABLE public.vw_token_candles FROM authenticated;
+GRANT SELECT ON TABLE public.vw_token_candles TO service_role;
+
+CREATE OR REPLACE VIEW public.vw_fee_leaderboard_by_chain AS
+SELECT * FROM indexer.vw_fee_leaderboard_by_chain;
+REVOKE ALL ON TABLE public.vw_fee_leaderboard_by_chain FROM anon;
+REVOKE ALL ON TABLE public.vw_fee_leaderboard_by_chain FROM authenticated;
+GRANT SELECT ON TABLE public.vw_fee_leaderboard_by_chain TO service_role;
+
+CREATE OR REPLACE VIEW public.vw_fee_leaderboard_current AS
+SELECT * FROM indexer.vw_fee_leaderboard_current;
+REVOKE ALL ON TABLE public.vw_fee_leaderboard_current FROM anon;
+REVOKE ALL ON TABLE public.vw_fee_leaderboard_current FROM authenticated;
+GRANT SELECT ON TABLE public.vw_fee_leaderboard_current TO service_role;
+
 CREATE OR REPLACE VIEW public.vw_token_activity AS
 SELECT * FROM indexer.vw_token_activity;
 REVOKE ALL ON TABLE public.vw_token_activity FROM anon;
@@ -781,7 +989,7 @@ REVOKE ALL ON TABLE public.vw_token_activity_desc FROM anon;
 REVOKE ALL ON TABLE public.vw_token_activity_desc FROM authenticated;
 GRANT SELECT ON TABLE public.vw_token_activity_desc TO service_role;
 
-CREATE OR REPLACE VIEW public.vw_token_stats_current AS
+CREATE VIEW public.vw_token_stats_current AS
 SELECT * FROM indexer.vw_token_stats_current;
 REVOKE ALL ON TABLE public.vw_token_stats_current FROM anon;
 REVOKE ALL ON TABLE public.vw_token_stats_current FROM authenticated;

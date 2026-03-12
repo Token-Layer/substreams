@@ -2459,6 +2459,50 @@ fn decimal_to_string_max_18(value: &substreams::scalar::BigDecimal) -> String {
         s
     }
 }
+
+fn parse_big_decimal_or_zero(input: &str) -> substreams::scalar::BigDecimal {
+    substreams::scalar::BigDecimal::from_str(input)
+        .unwrap_or_else(|_| substreams::scalar::BigDecimal::from(0))
+}
+
+fn candle_bucket_start(ts: &prost_types::Timestamp) -> prost_types::Timestamp {
+    let seconds = ts.seconds - ts.seconds.rem_euclid(60);
+    prost_types::Timestamp { seconds, nanos: 0 }
+}
+
+fn candle_bucket_end(ts: &prost_types::Timestamp) -> prost_types::Timestamp {
+    prost_types::Timestamp {
+        seconds: candle_bucket_start(ts).seconds + 60,
+        nanos: 0,
+    }
+}
+
+fn candle_store_key(token_layer_id: &str, bucket_start: &prost_types::Timestamp) -> String {
+    format!("{}|{}", token_layer_id, bucket_start.seconds)
+}
+
+fn candle_store_touched_keys(events: &contract::Events) -> HashMap<String, String> {
+    let mut out = HashMap::new();
+    for trade in events.agg_token_trades.iter() {
+        if trade.token_layer_id.is_empty() {
+            continue;
+        }
+        let ts = match trade.evt_block_time.as_ref() {
+            Some(v) => v,
+            None => continue,
+        };
+        let bucket = candle_bucket_start(ts);
+        let key = candle_store_key(&trade.token_layer_id, &bucket);
+        out.entry(key).or_insert_with(|| trade.token_address.clone());
+    }
+    out
+}
+
+fn decode_candle_bucket_start_from_key(key: &str) -> Option<prost_types::Timestamp> {
+    let seconds = key.rsplit('|').next()?.parse::<i64>().ok()?;
+    Some(prost_types::Timestamp { seconds, nanos: 0 })
+}
+
 fn map_token_coin_events(
     blk: &eth::Block,
     dds_store: &store::StoreGetInt64,
@@ -3478,6 +3522,158 @@ fn store_protocol_fee_balances(blk: eth::Block, store: StoreAddBigInt) {
     }
 }
 
+#[substreams::handlers::store]
+fn store_token_candle_open_1m(events: contract::Events, store: store::StoreSetIfNotExistsBigDecimal) {
+    for trade in events.agg_token_trades.into_iter() {
+        if trade.token_layer_id.is_empty() || trade.price_usd.is_empty() {
+            continue;
+        }
+        let ts = match trade.evt_block_time {
+            Some(v) => v,
+            None => continue,
+        };
+        let bucket = candle_bucket_start(&ts);
+        let key = candle_store_key(&trade.token_layer_id, &bucket);
+        let price = parse_big_decimal_or_zero(&trade.price_usd);
+        store.set_if_not_exists(trade.evt_index as u64, key, &price);
+    }
+}
+
+#[substreams::handlers::store]
+fn store_token_candle_high_1m(events: contract::Events, store: store::StoreMaxBigDecimal) {
+    for trade in events.agg_token_trades.into_iter() {
+        if trade.token_layer_id.is_empty() || trade.price_usd.is_empty() {
+            continue;
+        }
+        let ts = match trade.evt_block_time {
+            Some(v) => v,
+            None => continue,
+        };
+        let bucket = candle_bucket_start(&ts);
+        let key = candle_store_key(&trade.token_layer_id, &bucket);
+        let price = parse_big_decimal_or_zero(&trade.price_usd);
+        store.max(trade.evt_index as u64, key, &price);
+    }
+}
+
+#[substreams::handlers::store]
+fn store_token_candle_low_1m(events: contract::Events, store: store::StoreMinBigDecimal) {
+    for trade in events.agg_token_trades.into_iter() {
+        if trade.token_layer_id.is_empty() || trade.price_usd.is_empty() {
+            continue;
+        }
+        let ts = match trade.evt_block_time {
+            Some(v) => v,
+            None => continue,
+        };
+        let bucket = candle_bucket_start(&ts);
+        let key = candle_store_key(&trade.token_layer_id, &bucket);
+        let price = parse_big_decimal_or_zero(&trade.price_usd);
+        store.min(trade.evt_index as u64, key, &price);
+    }
+}
+
+#[substreams::handlers::store]
+fn store_token_candle_close_1m(events: contract::Events, store: store::StoreSetBigDecimal) {
+    for trade in events.agg_token_trades.into_iter() {
+        if trade.token_layer_id.is_empty() || trade.price_usd.is_empty() {
+            continue;
+        }
+        let ts = match trade.evt_block_time {
+            Some(v) => v,
+            None => continue,
+        };
+        let bucket = candle_bucket_start(&ts);
+        let key = candle_store_key(&trade.token_layer_id, &bucket);
+        let price = parse_big_decimal_or_zero(&trade.price_usd);
+        store.set(trade.evt_index as u64, key, &price);
+    }
+}
+
+#[substreams::handlers::store]
+fn store_token_candle_volume_token_1m(events: contract::Events, store: store::StoreAddBigDecimal) {
+    for trade in events.agg_token_trades.into_iter() {
+        if trade.token_layer_id.is_empty() || trade.token_amount.is_empty() {
+            continue;
+        }
+        let ts = match trade.evt_block_time {
+            Some(v) => v,
+            None => continue,
+        };
+        let bucket = candle_bucket_start(&ts);
+        let key = candle_store_key(&trade.token_layer_id, &bucket);
+        let amount = parse_big_decimal_or_zero(&trade.token_amount);
+        store.add(trade.evt_index as u64, key, &amount);
+    }
+}
+
+#[substreams::handlers::store]
+fn store_token_candle_volume_token_raw_1m(events: contract::Events, store: StoreAddBigInt) {
+    for trade in events.agg_token_trades.into_iter() {
+        if trade.token_layer_id.is_empty() || trade.token_amount_raw.is_empty() {
+            continue;
+        }
+        let ts = match trade.evt_block_time {
+            Some(v) => v,
+            None => continue,
+        };
+        let bucket = candle_bucket_start(&ts);
+        let key = candle_store_key(&trade.token_layer_id, &bucket);
+        let amount = parse_big_int_or_zero(&trade.token_amount_raw);
+        store.add(trade.evt_index as u64, key, &amount);
+    }
+}
+
+#[substreams::handlers::store]
+fn store_token_candle_volume_usd_1m(events: contract::Events, store: store::StoreAddBigDecimal) {
+    for trade in events.agg_token_trades.into_iter() {
+        if trade.token_layer_id.is_empty() || trade.usd_amount.is_empty() {
+            continue;
+        }
+        let ts = match trade.evt_block_time {
+            Some(v) => v,
+            None => continue,
+        };
+        let bucket = candle_bucket_start(&ts);
+        let key = candle_store_key(&trade.token_layer_id, &bucket);
+        let amount = parse_big_decimal_or_zero(&trade.usd_amount);
+        store.add(trade.evt_index as u64, key, &amount);
+    }
+}
+
+#[substreams::handlers::store]
+fn store_token_candle_volume_usd_raw_1m(events: contract::Events, store: StoreAddBigInt) {
+    for trade in events.agg_token_trades.into_iter() {
+        if trade.token_layer_id.is_empty() || trade.usd_amount_raw.is_empty() {
+            continue;
+        }
+        let ts = match trade.evt_block_time {
+            Some(v) => v,
+            None => continue,
+        };
+        let bucket = candle_bucket_start(&ts);
+        let key = candle_store_key(&trade.token_layer_id, &bucket);
+        let amount = parse_big_int_or_zero(&trade.usd_amount_raw);
+        store.add(trade.evt_index as u64, key, &amount);
+    }
+}
+
+#[substreams::handlers::store]
+fn store_token_candle_trade_count_1m(events: contract::Events, store: store::StoreAddInt64) {
+    for trade in events.agg_token_trades.into_iter() {
+        if trade.token_layer_id.is_empty() {
+            continue;
+        }
+        let ts = match trade.evt_block_time {
+            Some(v) => v,
+            None => continue,
+        };
+        let bucket = candle_bucket_start(&ts);
+        let key = candle_store_key(&trade.token_layer_id, &bucket);
+        store.add(trade.evt_index as u64, key, 1);
+    }
+}
+
 #[substreams::handlers::map]
 fn map_events(
     params: String,
@@ -3541,6 +3737,100 @@ fn map_events(
 }
 
 #[substreams::handlers::map]
-fn db_out(events: contract::Events) -> Result<substreams_database_change::pb::database::DatabaseChanges, substreams::errors::Error> {
-    Ok(db_changes::events_to_database_changes(events))
+fn db_out(
+    events: contract::Events,
+    store_token_candle_open_1m: store::StoreGetBigDecimal,
+    store_token_candle_high_1m: store::StoreGetBigDecimal,
+    store_token_candle_low_1m: store::StoreGetBigDecimal,
+    store_token_candle_close_1m: store::StoreGetBigDecimal,
+    store_token_candle_volume_token_1m: store::StoreGetBigDecimal,
+    store_token_candle_volume_token_raw_1m: store::StoreGetBigInt,
+    store_token_candle_volume_usd_1m: store::StoreGetBigDecimal,
+    store_token_candle_volume_usd_raw_1m: store::StoreGetBigInt,
+    store_token_candle_trade_count_1m: store::StoreGetInt64,
+) -> Result<substreams_database_change::pb::database::DatabaseChanges, substreams::errors::Error> {
+    let touched = candle_store_touched_keys(&events);
+    let mut candle_rows = Vec::new();
+
+    for (key, fallback_token_address) in touched.into_iter() {
+        let bucket_start = match decode_candle_bucket_start_from_key(&key) {
+            Some(v) => v,
+            None => continue,
+        };
+        let mut parts = key.split('|');
+        let token_layer_id = parts.next().unwrap_or_default().to_string();
+        if token_layer_id.is_empty() {
+            continue;
+        }
+
+        let open_price_usd = match store_token_candle_open_1m.get_last(key.clone()) {
+            Some(v) => v,
+            None => continue,
+        };
+        let high_price_usd = match store_token_candle_high_1m.get_last(key.clone()) {
+            Some(v) => v,
+            None => continue,
+        };
+        let low_price_usd = match store_token_candle_low_1m.get_last(key.clone()) {
+            Some(v) => v,
+            None => continue,
+        };
+        let close_price_usd = match store_token_candle_close_1m.get_last(key.clone()) {
+            Some(v) => v,
+            None => continue,
+        };
+        let volume_token = store_token_candle_volume_token_1m
+            .get_last(key.clone())
+            .unwrap_or_else(|| substreams::scalar::BigDecimal::from(0));
+        let volume_token_raw = store_token_candle_volume_token_raw_1m
+            .get_last(key.clone())
+            .unwrap_or_else(|| substreams::scalar::BigInt::from(0));
+        let volume_usd = store_token_candle_volume_usd_1m
+            .get_last(key.clone())
+            .unwrap_or_else(|| substreams::scalar::BigDecimal::from(0));
+        let volume_usd_raw = store_token_candle_volume_usd_raw_1m
+            .get_last(key.clone())
+            .unwrap_or_else(|| substreams::scalar::BigInt::from(0));
+        let trade_count = store_token_candle_trade_count_1m.get_last(key.clone()).unwrap_or(0);
+        let token_address = fallback_token_address;
+        let last_trade = events
+            .agg_token_trades
+            .iter()
+            .filter(|t| {
+                if t.token_layer_id != token_layer_id {
+                    return false;
+                }
+                match t.evt_block_time.as_ref() {
+                    Some(ts) => candle_bucket_start(ts).seconds == bucket_start.seconds,
+                    None => false,
+                }
+            })
+            .max_by_key(|t| (t.evt_block_number, t.evt_index));
+        let last_evt_block_number = last_trade.map(|t| t.evt_block_number as i64).unwrap_or(0);
+        let last_evt_block_time = last_trade.and_then(|t| t.evt_block_time.clone());
+
+        candle_rows.push(db_changes::AggTokenCandle1mRow {
+            row_id: key.clone(),
+            block_number: last_evt_block_number,
+            block_time: last_evt_block_time.clone(),
+            token_layer_id,
+            token_address,
+            venue: "all".to_string(),
+            bucket_start: bucket_start.clone(),
+            bucket_end: candle_bucket_end(&bucket_start),
+            open_price_usd: decimal_to_string_max_18(&open_price_usd),
+            high_price_usd: decimal_to_string_max_18(&high_price_usd),
+            low_price_usd: decimal_to_string_max_18(&low_price_usd),
+            close_price_usd: decimal_to_string_max_18(&close_price_usd),
+            volume_token: decimal_to_string_max_18(&volume_token),
+            volume_token_raw: volume_token_raw.to_string(),
+            volume_usd: decimal_to_string_max_18(&volume_usd),
+            volume_usd_raw: volume_usd_raw.to_string(),
+            trade_count,
+            last_evt_block_number,
+            last_evt_block_time,
+        });
+    }
+
+    Ok(db_changes::events_to_database_changes(events, candle_rows))
 }

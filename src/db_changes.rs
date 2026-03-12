@@ -4,6 +4,28 @@ use substreams::Hex;
 use substreams_database_change::pb::database::DatabaseChanges;
 use substreams_database_change::tables::Tables;
 
+pub struct AggTokenCandle1mRow {
+    pub row_id: String,
+    pub block_number: i64,
+    pub block_time: Option<prost_types::Timestamp>,
+    pub token_layer_id: String,
+    pub token_address: String,
+    pub venue: String,
+    pub bucket_start: prost_types::Timestamp,
+    pub bucket_end: prost_types::Timestamp,
+    pub open_price_usd: String,
+    pub high_price_usd: String,
+    pub low_price_usd: String,
+    pub close_price_usd: String,
+    pub volume_token: String,
+    pub volume_token_raw: String,
+    pub volume_usd: String,
+    pub volume_usd_raw: String,
+    pub trade_count: i64,
+    pub last_evt_block_number: i64,
+    pub last_evt_block_time: Option<prost_types::Timestamp>,
+}
+
 fn bytes_to_hex_prefixed(value: &[u8]) -> String {
     format!("0x{}", Hex(value).to_string())
 }
@@ -65,7 +87,10 @@ fn upsert_dim_token(
     if let Some(value) = evt_block_time.clone() { row.set("updated_evt_block_time", value); }
 }
 
-pub fn events_to_database_changes(events: contract::Events) -> DatabaseChanges {
+pub fn events_to_database_changes(
+    events: contract::Events,
+    candle_rows: Vec<AggTokenCandle1mRow>,
+) -> DatabaseChanges {
     let mut tables = Tables::new();
 
     for evt in events.registry_adapter_deployeds.into_iter() {
@@ -1865,6 +1890,32 @@ pub fn events_to_database_changes(events: contract::Events) -> DatabaseChanges {
             current.set("token_layer_id", token_layer_id);
             current.set("token_address", token_address);
             current.set("price_usd", price_usd);
+        }
+    }
+
+    for candle in candle_rows.into_iter() {
+        let row = tables.upsert_row("agg_token_candle_1m", candle.row_id);
+        row.set("_block_number_", candle.block_number);
+        if let Some(value) = candle.block_time.clone() {
+            row.set("_block_timestamp_", value);
+        }
+        row.set("token_layer_id", candle.token_layer_id);
+        row.set("token_address", candle.token_address);
+        row.set("venue", candle.venue);
+        row.set("bucket_start", candle.bucket_start);
+        row.set("bucket_end", candle.bucket_end);
+        row.set("open_price_usd", candle.open_price_usd);
+        row.set("high_price_usd", candle.high_price_usd);
+        row.set("low_price_usd", candle.low_price_usd);
+        row.set("close_price_usd", candle.close_price_usd);
+        row.set("volume_token", candle.volume_token);
+        row.set("volume_token_raw", candle.volume_token_raw);
+        row.set("volume_usd", candle.volume_usd);
+        row.set("volume_usd_raw", candle.volume_usd_raw);
+        row.set("trade_count", candle.trade_count);
+        row.set("last_evt_block_number", candle.last_evt_block_number);
+        if let Some(value) = candle.last_evt_block_time {
+            row.set("last_evt_block_time", value);
         }
     }
 
