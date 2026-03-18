@@ -112,6 +112,60 @@ Notes:
 - `START_BLOCK` is now optional. If omitted, Substreams uses module `initialBlock` from the manifest.
 - `SUBSTREAMS_PARALLEL_WORKERS` is consumed by backfill only.
 
+## Railway Deployment
+
+Railway should run this as one service per chain, using the same image:
+- service `tokenlayer-substreams-base-sepolia`
+- service `tokenlayer-substreams-bnb-testnet`
+- later, one additional service per new chain
+
+Recommended service setup:
+1. Connect the repo to Railway.
+2. Set the service root directory to `substreams/token_layer`.
+3. Let Railway build from [Dockerfile](/Users/chrisciszak/Documents/Projects/Thrust/Thrust%20Web%20App/substreams/token_layer/Dockerfile).
+4. Keep the default container command, which runs [scripts/railway-run-chain.sh](/Users/chrisciszak/Documents/Projects/Thrust/Thrust%20Web%20App/substreams/token_layer/scripts/railway-run-chain.sh).
+
+Suggested shared variables for the Railway project:
+- `DATABASE_URL_BASE`
+- `PINAX_API_KEY` or `PINAX_API_TOKEN`
+- `STREAMINGFAST_API_KEY` or `STREAMINGFAST_API_TOKEN`
+- `HANDLE_REORGS=1`
+- `UNDO_BUFFER_SIZE=200`
+
+Per-service variables:
+- `TOKENLAYER_CHAIN=base-sepolia` or `TOKENLAYER_CHAIN=bnb-testnet`
+- `TOKENLAYER_ACTION=live`
+- `TOKENLAYER_AUTO_SETUP=1`
+- optional `START_BLOCK`
+- optional `STOP_BLOCK` for bounded backfills
+- optional `SUBSTREAMS_PARALLEL_WORKERS` for backfills
+
+Notes for Railway:
+- Railway documents that Dockerfile auto-detection looks for `Dockerfile` in the root of the service source directory, so point the service root at `substreams/token_layer`.
+- Railway supports shared variables and service-specific variables, which maps cleanly to `.env.shared.sink` and `.env.<chain>.sink`.
+- If Railway gives you a `postgres://` or `postgresql://` URL, the chain wrapper normalizes it to `psql://` for `substreams-sink-sql`.
+
+Operational pattern:
+- live sync: normal long-running service with `TOKENLAYER_ACTION=live`
+- backfill: duplicate a service temporarily and set `TOKENLAYER_ACTION=backfill`
+- schema setup: handled automatically on container start when `TOKENLAYER_AUTO_SETUP=1`
+
+Example Railway mapping:
+
+```text
+Shared variables
+  DATABASE_URL_BASE=postgresql://...
+  PINAX_API_KEY=...
+
+Service: tokenlayer-substreams-base-sepolia
+  TOKENLAYER_CHAIN=base-sepolia
+  TOKENLAYER_ACTION=live
+
+Service: tokenlayer-substreams-bnb-testnet
+  TOKENLAYER_CHAIN=bnb-testnet
+  TOKENLAYER_ACTION=live
+```
+
 ### Balance Tables
 
 - `WalletTokenBalance`: append-only balance snapshots

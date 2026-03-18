@@ -494,7 +494,25 @@ SELECT
   t.template_id,
   t.name,
   t.symbol
-FROM indexer_evm_bnb_testnet.raw_registry_token_registered t;
+FROM indexer_evm_bnb_testnet.raw_registry_token_registered t
+
+UNION ALL
+
+SELECT
+  'solana-devnet'::text AS chain,
+  t.block_slot::numeric AS evt_block_number,
+  t.evt_block_time,
+  t.trx_hash AS evt_tx_hash,
+  t.row_index::numeric AS evt_index,
+  t.token_layer_id AS token_id,
+  (t.message_decoded_json::jsonb -> 'token_key' ->> 'token_address_hex')::text AS token_address,
+  NULL::text AS template_id,
+  (t.message_decoded_json::jsonb ->> 'name')::text AS name,
+  (t.message_decoded_json::jsonb ->> 'symbol')::text AS symbol
+FROM indexer_sol_solana_devnet.raw_registry_lzreceive_instruction t
+WHERE t.message_type_label = 'register_token'
+  AND t.token_layer_id IS NOT NULL
+  AND btrim(t.token_layer_id) <> '';
 
 -- Service-role-only access
 REVOKE ALL ON TABLE indexer.vw_tokens_registered FROM anon;
@@ -636,6 +654,72 @@ FROM indexer_evm_bnb_testnet.raw_launchpad_graduation t;
 REVOKE ALL ON TABLE indexer.vw_launchpad_graduations FROM anon;
 REVOKE ALL ON TABLE indexer.vw_launchpad_graduations FROM authenticated;
 GRANT SELECT ON TABLE indexer.vw_launchpad_graduations TO service_role;
+
+CREATE OR REPLACE VIEW indexer.vw_dex_pools AS
+SELECT
+  'base-sepolia'::text AS chain,
+  'uniswap_v3'::text AS dex,
+  t.evt_block_number,
+  t.evt_block_time,
+  t.evt_tx_hash AS tx_hash,
+  t.evt_index,
+  t.pool AS contract_address,
+  t.pool AS pool_address,
+  t.token_layer_id,
+  t.token_address,
+  t.token0 AS token_a_address,
+  t.token1 AS token_b_address,
+  NULL::text AS token_a_token_layer_id,
+  NULL::text AS token_b_token_layer_id,
+  t.fee::text AS fee,
+  t.sqrt_price_x96::text AS initial_price
+FROM indexer_evm_base_sepolia.raw_uniswap_v3_pool_created t
+
+UNION ALL
+
+SELECT
+  'bnb-testnet'::text AS chain,
+  'pancakeswap_v3'::text AS dex,
+  t.evt_block_number,
+  t.evt_block_time,
+  t.evt_tx_hash AS tx_hash,
+  t.evt_index,
+  t.pool AS contract_address,
+  t.pool AS pool_address,
+  t.token_layer_id,
+  t.token_address,
+  t.token0 AS token_a_address,
+  t.token1 AS token_b_address,
+  NULL::text AS token_a_token_layer_id,
+  NULL::text AS token_b_token_layer_id,
+  t.fee::text AS fee,
+  t.sqrt_price_x96::text AS initial_price
+FROM indexer_evm_bnb_testnet.raw_uniswap_v3_pool_created t
+
+UNION ALL
+
+SELECT
+  'solana-devnet'::text AS chain,
+  'meteora_damm_v2'::text AS dex,
+  t.block_slot::numeric AS evt_block_number,
+  t.evt_block_time,
+  t.trx_hash AS tx_hash,
+  t.row_index::numeric AS evt_index,
+  t.pool AS contract_address,
+  t.pool AS pool_address,
+  t.token_layer_id,
+  t.token_mint AS token_address,
+  t.token_a_mint AS token_a_address,
+  t.token_b_mint AS token_b_address,
+  t.token_a_token_layer_id,
+  t.token_b_token_layer_id,
+  NULL::text AS fee,
+  t.sqrt_price AS initial_price
+FROM indexer_sol_solana_devnet.raw_meteora_damm_v2_pool_created t;
+
+REVOKE ALL ON TABLE indexer.vw_dex_pools FROM anon;
+REVOKE ALL ON TABLE indexer.vw_dex_pools FROM authenticated;
+GRANT SELECT ON TABLE indexer.vw_dex_pools TO service_role;
 
 DROP VIEW IF EXISTS public.vw_token_candles;
 DROP VIEW IF EXISTS public.vw_token_stats_current;
@@ -1017,6 +1101,192 @@ REVOKE ALL ON TABLE indexer.vw_token_activity FROM anon;
 REVOKE ALL ON TABLE indexer.vw_token_activity FROM authenticated;
 GRANT SELECT ON TABLE indexer.vw_token_activity TO service_role;
 
+CREATE OR REPLACE VIEW indexer.vw_token_about
+WITH (security_invoker = false) AS
+SELECT
+  t.id,
+  t.id AS token_id,
+  t.external_id,
+  t.external_provider_id,
+  t.name,
+  t.symbol,
+  t.slug,
+  t.description,
+  t.logo,
+  t.banner_url,
+  t.video_url,
+  t.graduated,
+  t.graduated_at,
+  t.token_layer_id,
+  t.origin_endpoint_id,
+  t.origin_chain,
+  t.builder_code,
+  t.created_at,
+  t.updated_at,
+  address_summary.primary_evm_address,
+  address_summary.primary_solana_address,
+  COALESCE(token_addresses.token_addresses, '[]'::jsonb) AS token_addresses,
+  COALESCE(registered_chains.registered_chains, '[]'::jsonb) AS registered_chains,
+  COALESCE(dex_pools.dex_pools, '[]'::jsonb) AS dex_pools,
+  COALESCE(token_addresses.token_address_count, 0) AS token_address_count,
+  COALESCE(registered_chains.registered_chain_count, 0) AS registered_chain_count,
+  COALESCE(dex_pools.dex_pool_count, 0) AS dex_pool_count
+FROM public.tokens t
+LEFT JOIN LATERAL (
+  SELECT
+    MAX(CASE WHEN ta.address_type = 'evm' THEN COALESCE(ta.address_display, ta.address) END) AS primary_evm_address,
+    MAX(CASE WHEN ta.address_type = 'sol' THEN ta.address END) AS primary_solana_address
+  FROM public.token_addresses ta
+  WHERE ta.token_id = t.id
+) address_summary ON TRUE
+LEFT JOIN LATERAL (
+  WITH indexer_registered_chains AS (
+    SELECT DISTINCT chain
+    FROM (
+      SELECT c.chain
+      FROM indexer.vw_tokens_created c
+      WHERE t.token_layer_id IS NOT NULL
+        AND c.token_id = t.token_layer_id
+
+      UNION
+
+      SELECT r.chain
+      FROM indexer.vw_tokens_registered r
+      WHERE t.token_layer_id IS NOT NULL
+        AND r.token_id = t.token_layer_id
+    ) chains
+  )
+  SELECT
+    COUNT(*)::integer AS token_address_count,
+    jsonb_agg(
+      jsonb_build_object(
+        'id', ta.id,
+        'token_id', ta.token_id,
+        'chain', ta.chain,
+        'platform_name', ta.platform_name,
+        'address', ta.address,
+        'address_display', ta.address_display,
+        'address_type', ta.address_type,
+        'decimals', ta.decimals,
+        'confirmed', ta.confirmed,
+        'is_internal', ta.is_internal,
+        'is_registered', (irc.chain IS NOT NULL),
+        'stored_is_registered', ta.is_registered,
+        'eid', ta.eid,
+        'dex_name', ta.dex_name,
+        'dex_address', ta.dex_address,
+        'metadata', ta.metadata,
+        'metadata_updated_at', ta.metadata_updated_at,
+        'created_at', ta.created_at
+      )
+      ORDER BY ta.chain, ta.created_at, ta.id
+    ) AS token_addresses
+  FROM public.token_addresses ta
+  LEFT JOIN indexer_registered_chains irc
+    ON irc.chain = ta.chain
+  WHERE ta.token_id = t.id
+) token_addresses ON TRUE
+LEFT JOIN LATERAL (
+  WITH registration_rows AS (
+    SELECT
+      c.chain,
+      INITCAP(REPLACE(c.chain, '-', ' ')) AS platform_name,
+      LOWER(c.token_address) AS address,
+      c.token_address AS address_display,
+      CASE WHEN c.chain LIKE 'solana%' THEN 'sol' ELSE 'evm' END AS address_type,
+      NULL::integer AS eid,
+      TRUE AS is_registered,
+      TRUE AS is_origin_chain,
+      c.source_event,
+      'indexer.vw_tokens_created'::text AS source
+    FROM indexer.vw_tokens_created c
+    WHERE t.token_layer_id IS NOT NULL
+      AND c.token_id = t.token_layer_id
+
+    UNION ALL
+
+    SELECT
+      r.chain,
+      INITCAP(REPLACE(r.chain, '-', ' ')) AS platform_name,
+      LOWER(r.token_address) AS address,
+      r.token_address AS address_display,
+      CASE WHEN r.chain LIKE 'solana%' THEN 'sol' ELSE 'evm' END AS address_type,
+      NULL::integer AS eid,
+      TRUE AS is_registered,
+      FALSE AS is_origin_chain,
+      'registry_token_registered'::text AS source_event,
+      'indexer.vw_tokens_registered'::text AS source
+    FROM indexer.vw_tokens_registered r
+    WHERE t.token_layer_id IS NOT NULL
+      AND r.token_id = t.token_layer_id
+  ),
+  grouped AS (
+    SELECT
+      rr.chain,
+      MAX(rr.platform_name) AS platform_name,
+      MAX(rr.address) AS address,
+      MAX(rr.address_display) AS address_display,
+      MAX(rr.address_type) AS address_type,
+      MAX(rr.eid) AS eid,
+      BOOL_OR(rr.is_registered) AS is_registered,
+      BOOL_OR(rr.is_origin_chain) AS is_origin_chain,
+      to_jsonb(ARRAY_AGG(DISTINCT rr.source ORDER BY rr.source)) AS sources,
+      to_jsonb(ARRAY_AGG(DISTINCT rr.source_event ORDER BY rr.source_event)) AS source_events
+    FROM registration_rows rr
+    GROUP BY rr.chain
+  )
+  SELECT
+    COUNT(*)::integer AS registered_chain_count,
+    jsonb_agg(
+      jsonb_build_object(
+        'chain', g.chain,
+        'platform_name', g.platform_name,
+        'address', g.address,
+        'address_display', g.address_display,
+        'address_type', g.address_type,
+        'eid', g.eid,
+        'is_registered', g.is_registered,
+        'is_origin_chain', g.is_origin_chain,
+        'sources', g.sources,
+        'source_events', g.source_events
+      )
+      ORDER BY g.chain
+    ) AS registered_chains
+  FROM grouped g
+) registered_chains ON TRUE
+LEFT JOIN LATERAL (
+  SELECT
+    COUNT(*)::integer AS dex_pool_count,
+    jsonb_agg(
+      jsonb_build_object(
+        'chain', dp.chain,
+        'dex', dp.dex,
+        'contract_address', dp.contract_address,
+        'pool_address', dp.pool_address,
+        'token_layer_id', dp.token_layer_id,
+        'token_address', dp.token_address,
+        'token_a_address', dp.token_a_address,
+        'token_b_address', dp.token_b_address,
+        'token_a_token_layer_id', dp.token_a_token_layer_id,
+        'token_b_token_layer_id', dp.token_b_token_layer_id,
+        'fee', dp.fee,
+        'initial_price', dp.initial_price,
+        'tx_hash', dp.tx_hash,
+        'evt_block_number', dp.evt_block_number,
+        'evt_block_time', dp.evt_block_time,
+        'evt_index', dp.evt_index
+      )
+      ORDER BY dp.chain, dp.dex, dp.evt_block_time, dp.pool_address
+    ) AS dex_pools
+  FROM indexer.vw_dex_pools dp
+  WHERE t.token_layer_id IS NOT NULL
+    AND dp.token_layer_id = t.token_layer_id
+) dex_pools ON TRUE;
+
+REVOKE ALL ON TABLE indexer.vw_token_about FROM anon;
+REVOKE ALL ON TABLE indexer.vw_token_about FROM authenticated;
+GRANT SELECT ON TABLE indexer.vw_token_about TO service_role;
+
 -- Public-schema mirrors (same shape, single-source logic from indexer schema)
 CREATE OR REPLACE VIEW public.vw_token_trades AS
 SELECT * FROM indexer.vw_token_trades;
@@ -1084,6 +1354,12 @@ REVOKE ALL ON TABLE public.vw_launchpad_graduations FROM anon;
 REVOKE ALL ON TABLE public.vw_launchpad_graduations FROM authenticated;
 GRANT SELECT ON TABLE public.vw_launchpad_graduations TO service_role;
 
+CREATE OR REPLACE VIEW public.vw_dex_pools AS
+SELECT * FROM indexer.vw_dex_pools;
+REVOKE ALL ON TABLE public.vw_dex_pools FROM anon;
+REVOKE ALL ON TABLE public.vw_dex_pools FROM authenticated;
+GRANT SELECT ON TABLE public.vw_dex_pools TO service_role;
+
 CREATE VIEW public.vw_token_candles AS
 SELECT * FROM indexer.vw_token_candles;
 REVOKE ALL ON TABLE public.vw_token_candles FROM anon;
@@ -1107,6 +1383,13 @@ SELECT * FROM indexer.vw_token_activity;
 REVOKE ALL ON TABLE public.vw_token_activity FROM anon;
 REVOKE ALL ON TABLE public.vw_token_activity FROM authenticated;
 GRANT SELECT ON TABLE public.vw_token_activity TO service_role;
+
+CREATE OR REPLACE VIEW public.vw_token_about
+WITH (security_invoker = false) AS
+SELECT * FROM indexer.vw_token_about;
+REVOKE ALL ON TABLE public.vw_token_about FROM anon;
+REVOKE ALL ON TABLE public.vw_token_about FROM authenticated;
+GRANT SELECT ON TABLE public.vw_token_about TO service_role;
 
 CREATE VIEW public.vw_token_stats_current AS
 SELECT * FROM indexer.vw_token_stats_current;

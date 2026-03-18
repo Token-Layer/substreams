@@ -1,0 +1,9 @@
+target
+data
+replay.log
+.substreams.env
+.env*
+!.env*.example
+Dockerfile*
+docker-compose.yaml
+README.md
