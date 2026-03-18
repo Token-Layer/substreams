@@ -164,7 +164,7 @@ BEGIN
     END IF;
   END LOOP;
 
-  FOR t IN SELECT unnest(ARRAY['raw_launchpad_buy', 'raw_launchpad_sell', 'raw_launchpad_graduation'])
+  FOR t IN SELECT unnest(ARRAY['raw_launchpad_buy', 'raw_launchpad_sell'])
   LOOP
     IF to_regclass(format('%I', t)) IS NOT NULL THEN
       cname := 'fk_tid_' || substr(md5(t), 1, 10);
@@ -483,21 +483,25 @@ SELECT
   token_layer_id
 FROM "raw_uniswap_v3_burn";
 
-CREATE OR REPLACE VIEW "vw_launchpad_graduations" AS
+DROP VIEW IF EXISTS "vw_launchpad_graduations";
+
+CREATE VIEW "vw_launchpad_graduations" AS
 SELECT
   evt_block_number,
   evt_block_time,
   evt_tx_hash AS tx_hash,
   evt_index,
   token_layer_id,
-  token_id,
   token_address,
   is_external,
   final_supply,
   final_reserves
 FROM "raw_launchpad_graduation";
 
-CREATE OR REPLACE VIEW "vw_token_activity" AS
+DROP VIEW IF EXISTS "vw_token_activity_desc";
+DROP VIEW IF EXISTS "vw_token_activity";
+
+CREATE VIEW "vw_token_activity" AS
 WITH cfg AS (
   SELECT
     COALESCE(MAX(CASE WHEN key = 'default_token_decimals' THEN value END)::numeric, 18::numeric) AS default_token_decimals,
@@ -514,9 +518,10 @@ activity_base AS (
     t.evt_tx_hash::text AS tx_hash,
     t.evt_index::numeric AS evt_index,
     t.token_layer_id::text AS token_layer_id,
-    NULL::text AS token_id,
     t.token_address::text AS token_address,
     t.wallet::text AS wallet,
+    t.trader::text AS trader,
+    t.receiver::text AS receiver,
     NULL::text AS from_address,
     NULL::text AS to_address,
     t.token_amount::numeric AS token_amount,
@@ -548,8 +553,9 @@ activity_base AS (
     t.evt_tx_hash::text,
     t.evt_index::numeric,
     t.token_layer_id::text,
-    NULL::text,
     t.token_address::text,
+    NULL::text,
+    NULL::text,
     NULL::text,
     t."from"::text,
     t."to"::text,
@@ -582,8 +588,9 @@ activity_base AS (
     t.evt_tx_hash::text,
     t.evt_index::numeric,
     t.token_layer_id::text,
-    NULL::text,
     t.token_address::text,
+    NULL::text,
+    NULL::text,
     NULL::text,
     t.from_address::text,
     NULL::text,
@@ -616,8 +623,9 @@ activity_base AS (
     t.evt_tx_hash::text,
     t.evt_index::numeric,
     t.token_layer_id::text,
-    NULL::text,
     t.token_address::text,
+    NULL::text,
+    NULL::text,
     NULL::text,
     NULL::text,
     t.to_address::text,
@@ -650,9 +658,10 @@ activity_base AS (
     t.evt_tx_hash::text,
     t.evt_index::numeric,
     t.token_layer_id::text,
-    NULL::text,
     t.token_address::text,
     t.owner::text,
+    NULL::text,
+    NULL::text,
     t.sender::text,
     NULL::text,
     CASE
@@ -708,9 +717,10 @@ activity_base AS (
     t.evt_tx_hash::text,
     t.evt_index::numeric,
     t.token_layer_id::text,
-    NULL::text,
     t.token_address::text,
     t.owner::text,
+    NULL::text,
+    NULL::text,
     NULL::text,
     NULL::text,
     CASE
@@ -766,8 +776,9 @@ activity_base AS (
     t.evt_tx_hash::text,
     t.evt_index::numeric,
     t.token_id::text,
-    t.token_id::text,
     t.token_address::text,
+    NULL::text,
+    NULL::text,
     NULL::text,
     NULL::text,
     NULL::text,
@@ -800,8 +811,9 @@ activity_base AS (
     t.evt_tx_hash::text,
     t.evt_index::numeric,
     t.token_id::text,
-    t.token_id::text,
     t.token_address::text,
+    NULL::text,
+    NULL::text,
     NULL::text,
     NULL::text,
     NULL::text,
@@ -834,8 +846,9 @@ activity_base AS (
     t.evt_tx_hash::text,
     t.evt_index::numeric,
     t.token_id::text,
-    t.token_id::text,
     t.token_address::text,
+    NULL::text,
+    NULL::text,
     NULL::text,
     NULL::text,
     NULL::text,
@@ -867,9 +880,10 @@ activity_base AS (
     t.evt_block_time,
     t.evt_tx_hash::text,
     t.evt_index::numeric,
-    COALESCE(NULLIF(t.token_layer_id::text, ''), t.token_id::text),
-    t.token_id::text,
+    t.token_layer_id::text,
     t.token_address::text,
+    NULL::text,
+    NULL::text,
     NULL::text,
     NULL::text,
     NULL::text,
@@ -940,11 +954,6 @@ LEFT JOIN LATERAL (
   ORDER BY pr.evt_block_number DESC, pr.evt_index DESC
   LIMIT 1
 ) p ON TRUE;
-
-CREATE OR REPLACE VIEW "vw_token_activity_desc" AS
-SELECT *
-FROM "vw_token_activity"
-ORDER BY evt_block_number DESC, evt_index DESC;
 
 DROP VIEW IF EXISTS public.vw_token_stats_current;
 DROP VIEW IF EXISTS indexer.vw_token_stats_current;
@@ -1050,6 +1059,10 @@ SELECT
     WHEN lt.price_usd IS NULL OR b24h.price_usd IS NULL THEN 0::numeric
     ELSE lt.price_usd - b24h.price_usd
   END AS price_change_24h_abs,
+  COALESCE(cts.total_volume_token, 0::numeric) AS total_volume_token,
+  COALESCE(cts.total_volume_token_raw, 0::numeric) AS total_volume_token_raw,
+  COALESCE(cts.total_volume_usd, 0::numeric) AS total_volume_usd,
+  COALESCE(cts.total_volume_usd_raw, 0::numeric) AS total_volume_usd_raw,
   COALESCE(v5m.volume_usd, 0::numeric) AS volume_usd_5m,
   COALESCE(v1h.volume_usd, 0::numeric) AS volume_usd_1h,
   COALESCE(v6h.volume_usd, 0::numeric) AS volume_usd_6h,
@@ -1209,6 +1222,8 @@ LEFT JOIN latest_trade lt
   ON lt.token_layer_id = d.token_layer_id
 LEFT JOIN holder_counts h
   ON h.token_layer_id = d.token_layer_id
+LEFT JOIN "cur_token_stats" cts
+  ON cts.token_layer_id = d.token_layer_id
 LEFT JOIN "vw_launchpad_pool_state_latest" lp
   ON lp.token_id = d.token_layer_id
 LEFT JOIN LATERAL (
@@ -1640,6 +1655,9 @@ WHERE d.token_layer_id IS NOT NULL
 
 CREATE TABLE IF NOT EXISTS "cur_token_stats" (
   "token_layer_id" TEXT PRIMARY KEY,
+  "_block_number_" NUMERIC,
+  "_block_timestamp_" TIMESTAMP,
+  "evt_block_time" TIMESTAMP,
   "token_address" TEXT,
   "price_usd" NUMERIC,
   "price_change_1h_pct" NUMERIC,
@@ -1654,12 +1672,23 @@ CREATE TABLE IF NOT EXISTS "cur_token_stats" (
   "volume_usd_6h" NUMERIC,
   "volume_usd_12h" NUMERIC,
   "volume_usd_24h" NUMERIC,
+  "total_volume_token" NUMERIC,
+  "total_volume_token_raw" NUMERIC,
+  "total_volume_usd" NUMERIC,
+  "total_volume_usd_raw" NUMERIC,
   "holder_count" NUMERIC,
   "evt_block_number" NUMERIC,
   "updated_at" TIMESTAMP
 );
 CREATE INDEX IF NOT EXISTS "idx_cur_token_stats_token_address" ON "cur_token_stats" ("token_address");
 CREATE INDEX IF NOT EXISTS "idx_cur_token_stats_evt_block_number" ON "cur_token_stats" ("evt_block_number");
+ALTER TABLE "cur_token_stats" ADD COLUMN IF NOT EXISTS "_block_number_" NUMERIC;
+ALTER TABLE "cur_token_stats" ADD COLUMN IF NOT EXISTS "_block_timestamp_" TIMESTAMP;
+ALTER TABLE "cur_token_stats" ADD COLUMN IF NOT EXISTS "evt_block_time" TIMESTAMP;
+ALTER TABLE "cur_token_stats" ADD COLUMN IF NOT EXISTS "total_volume_token" NUMERIC;
+ALTER TABLE "cur_token_stats" ADD COLUMN IF NOT EXISTS "total_volume_token_raw" NUMERIC;
+ALTER TABLE "cur_token_stats" ADD COLUMN IF NOT EXISTS "total_volume_usd" NUMERIC;
+ALTER TABLE "cur_token_stats" ADD COLUMN IF NOT EXISTS "total_volume_usd_raw" NUMERIC;
 
 CREATE OR REPLACE FUNCTION "refresh_cur_token_stats"(p_now TIMESTAMP DEFAULT now())
 RETURNS VOID

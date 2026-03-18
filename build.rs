@@ -15,6 +15,7 @@ fn main() -> Result<(), anyhow::Error> {
         "abi/roles_contract.abi.json",
         "abi/token_coin_contract.abi.json",
         "abi/uniswap_v3_pool_contract.abi.json",
+        "abi/pancakeswap_v3_pool_contract.abi.json",
         "abi/uniswap_v3_factory_contract.abi.json",
     ];
     let file_output_names = [
@@ -28,6 +29,7 @@ fn main() -> Result<(), anyhow::Error> {
         "src/abi/roles_contract.rs",
         "src/abi/token_coin_contract.rs",
         "src/abi/uniswap_v3_pool_contract.rs",
+        "src/abi/pancakeswap_v3_pool_contract.rs",
         "src/abi/uniswap_v3_factory_contract.rs",
     ];
 

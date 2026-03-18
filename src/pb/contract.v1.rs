@@ -1321,17 +1321,15 @@ pub struct LaunchpadGraduation {
     pub evt_block_time: ::core::option::Option<::prost_types::Timestamp>,
     #[prost(uint64, tag="4")]
     pub evt_block_number: u64,
-    #[prost(bytes="vec", tag="5")]
-    pub token_id: ::prost::alloc::vec::Vec<u8>,
-    #[prost(string, tag="6")]
+    #[prost(string, tag="5")]
     pub token_address: ::prost::alloc::string::String,
-    #[prost(bool, tag="7")]
+    #[prost(bool, tag="6")]
     pub is_external: bool,
-    #[prost(string, tag="8")]
+    #[prost(string, tag="7")]
     pub final_supply: ::prost::alloc::string::String,
-    #[prost(string, tag="9")]
+    #[prost(string, tag="8")]
     pub final_reserves: ::prost::alloc::string::String,
-    #[prost(string, tag="10")]
+    #[prost(string, tag="9")]
     pub token_layer_id: ::prost::alloc::string::String,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
@@ -2243,6 +2241,10 @@ pub struct UniswapV3Swap {
     pub token_address: ::prost::alloc::string::String,
     #[prost(string, tag="14")]
     pub token_layer_id: ::prost::alloc::string::String,
+    #[prost(string, tag="15")]
+    pub protocol_fees_token0: ::prost::alloc::string::String,
+    #[prost(string, tag="16")]
+    pub protocol_fees_token1: ::prost::alloc::string::String,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -2417,6 +2419,10 @@ pub struct AggTokenTrade {
     pub token_decimals_source: ::prost::alloc::string::String,
     #[prost(string, tag="20")]
     pub quote_decimals_source: ::prost::alloc::string::String,
+    #[prost(string, tag="21")]
+    pub trader: ::prost::alloc::string::String,
+    #[prost(string, tag="22")]
+    pub receiver: ::prost::alloc::string::String,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]

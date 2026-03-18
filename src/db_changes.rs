@@ -26,12 +26,46 @@ pub struct AggTokenCandle1mRow {
     pub last_evt_block_time: Option<prost_types::Timestamp>,
 }
 
+pub struct CurTokenStatsRow {
+    pub row_id: String,
+    pub block_number: i64,
+    pub block_time: Option<prost_types::Timestamp>,
+    pub token_layer_id: String,
+    pub token_address: String,
+    pub total_volume_token: String,
+    pub total_volume_token_raw: String,
+    pub total_volume_usd: String,
+    pub total_volume_usd_raw: String,
+    pub evt_block_number: i64,
+    pub evt_block_time: Option<prost_types::Timestamp>,
+}
+
 fn bytes_to_hex_prefixed(value: &[u8]) -> String {
     format!("0x{}", Hex(value).to_string())
 }
 
+fn normalize_hex_prefixed(value: &str) -> String {
+    if value.is_empty() {
+        return String::new();
+    }
+    if value.starts_with("0x") || value.starts_with("0X") {
+        return value.to_lowercase();
+    }
+    format!("0x{}", value.to_lowercase())
+}
+
 fn event_row_id(tx_hash: &str, evt_index: u32) -> String {
-    format!("{}:{}", tx_hash, evt_index)
+    format!("{}:{}", normalize_hex_prefixed(tx_hash), evt_index)
+}
+
+fn normalize_transaction_hash_fields(changes: &mut DatabaseChanges) {
+    for table_change in changes.table_changes.iter_mut() {
+        for field in table_change.fields.iter_mut() {
+            if field.name == "evt_tx_hash" || field.name == "call_tx_hash" {
+                field.value = normalize_hex_prefixed(&field.value);
+            }
+        }
+    }
 }
 
 fn upsert_dim_token(
@@ -81,15 +115,20 @@ fn upsert_dim_token(
             row.set("source_event", v.to_string());
         }
         row.set("created_evt_block_number", evt_block_number as i64);
-        if let Some(value) = evt_block_time.clone() { row.set("created_evt_block_time", value.clone()); }
+        if let Some(value) = evt_block_time.clone() {
+            row.set("created_evt_block_time", value.clone());
+        }
     }
     row.set("updated_evt_block_number", evt_block_number as i64);
-    if let Some(value) = evt_block_time.clone() { row.set("updated_evt_block_time", value); }
+    if let Some(value) = evt_block_time.clone() {
+        row.set("updated_evt_block_time", value);
+    }
 }
 
 pub fn events_to_database_changes(
     events: contract::Events,
     candle_rows: Vec<AggTokenCandle1mRow>,
+    cur_token_stats_rows: Vec<CurTokenStatsRow>,
 ) -> DatabaseChanges {
     let mut tables = Tables::new();
 
@@ -97,10 +136,14 @@ pub fn events_to_database_changes(
         let row_id = event_row_id(&evt.evt_tx_hash, evt.evt_index);
         let row = tables.create_row("raw_registry_adapter_deployed", row_id);
         row.set("_block_number_", evt.evt_block_number as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("_block_timestamp_", value.clone()); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("_block_timestamp_", value.clone());
+        }
         row.set("evt_tx_hash", evt.evt_tx_hash);
         row.set("evt_index", evt.evt_index as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("evt_block_time", value); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("evt_block_time", value);
+        }
         row.set("evt_block_number", evt.evt_block_number as i64);
         row.set("adapter", bytes_to_hex_prefixed(&evt.adapter));
         row.set("external_token", bytes_to_hex_prefixed(&evt.external_token));
@@ -112,10 +155,14 @@ pub fn events_to_database_changes(
         let row_id = event_row_id(&evt.evt_tx_hash, evt.evt_index);
         let row = tables.create_row("raw_registry_adapter_template_reset", row_id);
         row.set("_block_number_", evt.evt_block_number as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("_block_timestamp_", value.clone()); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("_block_timestamp_", value.clone());
+        }
         row.set("evt_tx_hash", evt.evt_tx_hash);
         row.set("evt_index", evt.evt_index as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("evt_block_time", value); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("evt_block_time", value);
+        }
         row.set("evt_block_number", evt.evt_block_number as i64);
         row.set("template_id", bytes_to_hex_prefixed(&evt.template_id));
     }
@@ -124,24 +171,35 @@ pub fn events_to_database_changes(
         let row_id = event_row_id(&evt.evt_tx_hash, evt.evt_index);
         let row = tables.create_row("raw_registry_adapter_template_set", row_id);
         row.set("_block_number_", evt.evt_block_number as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("_block_timestamp_", value.clone()); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("_block_timestamp_", value.clone());
+        }
         row.set("evt_tx_hash", evt.evt_tx_hash);
         row.set("evt_index", evt.evt_index as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("evt_block_time", value); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("evt_block_time", value);
+        }
         row.set("evt_block_number", evt.evt_block_number as i64);
         row.set("template_id", bytes_to_hex_prefixed(&evt.template_id));
         row.set("adapter_type", evt.adapter_type as i64);
-        row.set("implementation_address", bytes_to_hex_prefixed(&evt.implementation_address));
+        row.set(
+            "implementation_address",
+            bytes_to_hex_prefixed(&evt.implementation_address),
+        );
     }
 
     for evt in events.registry_builder_fees_approveds.into_iter() {
         let row_id = event_row_id(&evt.evt_tx_hash, evt.evt_index);
         let row = tables.create_row("raw_registry_builder_fees_approved", row_id);
         row.set("_block_number_", evt.evt_block_number as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("_block_timestamp_", value.clone()); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("_block_timestamp_", value.clone());
+        }
         row.set("evt_tx_hash", evt.evt_tx_hash);
         row.set("evt_index", evt.evt_index as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("evt_block_time", value); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("evt_block_time", value);
+        }
         row.set("evt_block_number", evt.evt_block_number as i64);
         row.set("user", bytes_to_hex_prefixed(&evt.user));
         row.set("builder", bytes_to_hex_prefixed(&evt.builder));
@@ -151,10 +209,14 @@ pub fn events_to_database_changes(
         let row_id = event_row_id(&evt.evt_tx_hash, evt.evt_index);
         let row = tables.create_row("raw_registry_coin_created", row_id);
         row.set("_block_number_", evt.evt_block_number as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("_block_timestamp_", value.clone()); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("_block_timestamp_", value.clone());
+        }
         row.set("evt_tx_hash", evt.evt_tx_hash);
         row.set("evt_index", evt.evt_index as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("evt_block_time", value); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("evt_block_time", value);
+        }
         row.set("evt_block_number", evt.evt_block_number as i64);
         row.set("coin_address", bytes_to_hex_prefixed(&evt.coin_address));
         row.set("hub_id", evt.hub_id);
@@ -169,10 +231,14 @@ pub fn events_to_database_changes(
         let row_id = event_row_id(&evt.evt_tx_hash, evt.evt_index);
         let row = tables.create_row("raw_registry_contract_address_overwritten", row_id);
         row.set("_block_number_", evt.evt_block_number as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("_block_timestamp_", value.clone()); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("_block_timestamp_", value.clone());
+        }
         row.set("evt_tx_hash", evt.evt_tx_hash);
         row.set("evt_index", evt.evt_index as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("evt_block_time", value); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("evt_block_time", value);
+        }
         row.set("evt_block_number", evt.evt_block_number as i64);
         row.set("identifier", bytes_to_hex_prefixed(&evt.identifier));
         row.set("old_address", bytes_to_hex_prefixed(&evt.old_address));
@@ -183,13 +249,20 @@ pub fn events_to_database_changes(
         let row_id = event_row_id(&evt.evt_tx_hash, evt.evt_index);
         let row = tables.create_row("raw_registry_contract_deployed", row_id);
         row.set("_block_number_", evt.evt_block_number as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("_block_timestamp_", value.clone()); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("_block_timestamp_", value.clone());
+        }
         row.set("evt_tx_hash", evt.evt_tx_hash);
         row.set("evt_index", evt.evt_index as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("evt_block_time", value); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("evt_block_time", value);
+        }
         row.set("evt_block_number", evt.evt_block_number as i64);
         row.set("name", bytes_to_hex_prefixed(&evt.name));
-        row.set("contract_address", bytes_to_hex_prefixed(&evt.contract_address));
+        row.set(
+            "contract_address",
+            bytes_to_hex_prefixed(&evt.contract_address),
+        );
         row.set("salt", bytes_to_hex_prefixed(&evt.salt));
     }
 
@@ -211,10 +284,14 @@ pub fn events_to_database_changes(
         let row_id = event_row_id(&evt.evt_tx_hash, evt.evt_index);
         let row = tables.create_row("raw_registry_external_token_created", row_id);
         row.set("_block_number_", evt.evt_block_number as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("_block_timestamp_", value.clone()); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("_block_timestamp_", value.clone());
+        }
         row.set("evt_tx_hash", evt.evt_tx_hash);
         row.set("evt_index", evt.evt_index as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("evt_block_time", value); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("evt_block_time", value);
+        }
         row.set("evt_block_number", evt.evt_block_number as i64);
         row.set("token_id", evt.token_id);
         row.set("token_address", token_address);
@@ -229,10 +306,14 @@ pub fn events_to_database_changes(
         let row_id = event_row_id(&evt.evt_tx_hash, evt.evt_index);
         let row = tables.create_row("raw_registry_hub_created", row_id);
         row.set("_block_number_", evt.evt_block_number as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("_block_timestamp_", value.clone()); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("_block_timestamp_", value.clone());
+        }
         row.set("evt_tx_hash", evt.evt_tx_hash);
         row.set("evt_index", evt.evt_index as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("evt_block_time", value); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("evt_block_time", value);
+        }
         row.set("evt_block_number", evt.evt_block_number as i64);
         row.set("id", evt.id);
         row.set("creator", bytes_to_hex_prefixed(&evt.creator));
@@ -244,10 +325,14 @@ pub fn events_to_database_changes(
         let row_id = event_row_id(&evt.evt_tx_hash, evt.evt_index);
         let row = tables.create_row("raw_registry_hubs_address_changed", row_id);
         row.set("_block_number_", evt.evt_block_number as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("_block_timestamp_", value.clone()); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("_block_timestamp_", value.clone());
+        }
         row.set("evt_tx_hash", evt.evt_tx_hash);
         row.set("evt_index", evt.evt_index as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("evt_block_time", value); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("evt_block_time", value);
+        }
         row.set("evt_block_number", evt.evt_block_number as i64);
         row.set("new_address", bytes_to_hex_prefixed(&evt.new_address));
     }
@@ -256,10 +341,14 @@ pub fn events_to_database_changes(
         let row_id = event_row_id(&evt.evt_tx_hash, evt.evt_index);
         let row = tables.create_row("raw_registry_initialized", row_id);
         row.set("_block_number_", evt.evt_block_number as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("_block_timestamp_", value.clone()); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("_block_timestamp_", value.clone());
+        }
         row.set("evt_tx_hash", evt.evt_tx_hash);
         row.set("evt_index", evt.evt_index as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("evt_block_time", value); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("evt_block_time", value);
+        }
         row.set("evt_block_number", evt.evt_block_number as i64);
         row.set("version", evt.version as i64);
     }
@@ -268,10 +357,14 @@ pub fn events_to_database_changes(
         let row_id = event_row_id(&evt.evt_tx_hash, evt.evt_index);
         let row = tables.create_row("raw_registry_item_created", row_id);
         row.set("_block_number_", evt.evt_block_number as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("_block_timestamp_", value.clone()); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("_block_timestamp_", value.clone());
+        }
         row.set("evt_tx_hash", evt.evt_tx_hash);
         row.set("evt_index", evt.evt_index as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("evt_block_time", value); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("evt_block_time", value);
+        }
         row.set("evt_block_number", evt.evt_block_number as i64);
         row.set("id", evt.id);
         row.set("hub_id", evt.hub_id);
@@ -286,10 +379,14 @@ pub fn events_to_database_changes(
         let row_id = event_row_id(&evt.evt_tx_hash, evt.evt_index);
         let row = tables.create_row("raw_registry_items_address_changed", row_id);
         row.set("_block_number_", evt.evt_block_number as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("_block_timestamp_", value.clone()); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("_block_timestamp_", value.clone());
+        }
         row.set("evt_tx_hash", evt.evt_tx_hash);
         row.set("evt_index", evt.evt_index as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("evt_block_time", value); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("evt_block_time", value);
+        }
         row.set("evt_block_number", evt.evt_block_number as i64);
         row.set("new_address", bytes_to_hex_prefixed(&evt.new_address));
     }
@@ -298,34 +395,52 @@ pub fn events_to_database_changes(
         let row_id = event_row_id(&evt.evt_tx_hash, evt.evt_index);
         let row = tables.create_row("raw_registry_launchpad_address_changed", row_id);
         row.set("_block_number_", evt.evt_block_number as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("_block_timestamp_", value.clone()); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("_block_timestamp_", value.clone());
+        }
         row.set("evt_tx_hash", evt.evt_tx_hash);
         row.set("evt_index", evt.evt_index as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("evt_block_time", value); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("evt_block_time", value);
+        }
         row.set("evt_block_number", evt.evt_block_number as i64);
         row.set("new_address", bytes_to_hex_prefixed(&evt.new_address));
     }
 
-    for evt in events.registry_liquidity_manager_address_changeds.into_iter() {
+    for evt in events
+        .registry_liquidity_manager_address_changeds
+        .into_iter()
+    {
         let row_id = event_row_id(&evt.evt_tx_hash, evt.evt_index);
         let row = tables.create_row("raw_registry_liquidity_manager_address_changed", row_id);
         row.set("_block_number_", evt.evt_block_number as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("_block_timestamp_", value.clone()); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("_block_timestamp_", value.clone());
+        }
         row.set("evt_tx_hash", evt.evt_tx_hash);
         row.set("evt_index", evt.evt_index as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("evt_block_time", value); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("evt_block_time", value);
+        }
         row.set("evt_block_number", evt.evt_block_number as i64);
         row.set("new_address", bytes_to_hex_prefixed(&evt.new_address));
     }
 
-    for evt in events.registry_liquidity_migrator_address_changeds.into_iter() {
+    for evt in events
+        .registry_liquidity_migrator_address_changeds
+        .into_iter()
+    {
         let row_id = event_row_id(&evt.evt_tx_hash, evt.evt_index);
         let row = tables.create_row("raw_registry_liquidity_migrator_address_changed", row_id);
         row.set("_block_number_", evt.evt_block_number as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("_block_timestamp_", value.clone()); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("_block_timestamp_", value.clone());
+        }
         row.set("evt_tx_hash", evt.evt_tx_hash);
         row.set("evt_index", evt.evt_index as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("evt_block_time", value); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("evt_block_time", value);
+        }
         row.set("evt_block_number", evt.evt_block_number as i64);
         row.set("new_address", bytes_to_hex_prefixed(&evt.new_address));
     }
@@ -334,10 +449,14 @@ pub fn events_to_database_changes(
         let row_id = event_row_id(&evt.evt_tx_hash, evt.evt_index);
         let row = tables.create_row("raw_registry_manager_updated", row_id);
         row.set("_block_number_", evt.evt_block_number as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("_block_timestamp_", value.clone()); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("_block_timestamp_", value.clone());
+        }
         row.set("evt_tx_hash", evt.evt_tx_hash);
         row.set("evt_index", evt.evt_index as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("evt_block_time", value); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("evt_block_time", value);
+        }
         row.set("evt_block_number", evt.evt_block_number as i64);
         row.set("manager", bytes_to_hex_prefixed(&evt.manager));
         row.set("authorized", evt.authorized);
@@ -347,26 +466,37 @@ pub fn events_to_database_changes(
         let row_id = event_row_id(&evt.evt_tx_hash, evt.evt_index);
         let row = tables.create_row("raw_registry_oapp_configured", row_id);
         row.set("_block_number_", evt.evt_block_number as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("_block_timestamp_", value.clone()); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("_block_timestamp_", value.clone());
+        }
         row.set("evt_tx_hash", evt.evt_tx_hash);
         row.set("evt_index", evt.evt_index as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("evt_block_time", value); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("evt_block_time", value);
+        }
         row.set("evt_block_number", evt.evt_block_number as i64);
         row.set("endpoint_id", evt.endpoint_id as i64);
         row.set("token_id", bytes_to_hex_prefixed(&evt.token_id));
         row.set("token_address", bytes_to_hex_prefixed(&evt.token_address));
         row.set("send_library", bytes_to_hex_prefixed(&evt.send_library));
-        row.set("receive_library", bytes_to_hex_prefixed(&evt.receive_library));
+        row.set(
+            "receive_library",
+            bytes_to_hex_prefixed(&evt.receive_library),
+        );
     }
 
     for evt in events.registry_ownership_transferreds.into_iter() {
         let row_id = event_row_id(&evt.evt_tx_hash, evt.evt_index);
         let row = tables.create_row("raw_registry_ownership_transferred", row_id);
         row.set("_block_number_", evt.evt_block_number as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("_block_timestamp_", value.clone()); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("_block_timestamp_", value.clone());
+        }
         row.set("evt_tx_hash", evt.evt_tx_hash);
         row.set("evt_index", evt.evt_index as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("evt_block_time", value); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("evt_block_time", value);
+        }
         row.set("evt_block_number", evt.evt_block_number as i64);
         row.set("user", bytes_to_hex_prefixed(&evt.user));
         row.set("new_owner", bytes_to_hex_prefixed(&evt.new_owner));
@@ -376,10 +506,14 @@ pub fn events_to_database_changes(
         let row_id = event_row_id(&evt.evt_tx_hash, evt.evt_index);
         let row = tables.create_row("raw_registry_peer_set", row_id);
         row.set("_block_number_", evt.evt_block_number as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("_block_timestamp_", value.clone()); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("_block_timestamp_", value.clone());
+        }
         row.set("evt_tx_hash", evt.evt_tx_hash);
         row.set("evt_index", evt.evt_index as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("evt_block_time", value); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("evt_block_time", value);
+        }
         row.set("evt_block_number", evt.evt_block_number as i64);
         row.set("endpoint_id", evt.endpoint_id as i64);
         row.set("token_id", bytes_to_hex_prefixed(&evt.token_id));
@@ -391,10 +525,14 @@ pub fn events_to_database_changes(
         let row_id = event_row_id(&evt.evt_tx_hash, evt.evt_index);
         let row = tables.create_row("raw_registry_points_created", row_id);
         row.set("_block_number_", evt.evt_block_number as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("_block_timestamp_", value.clone()); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("_block_timestamp_", value.clone());
+        }
         row.set("evt_tx_hash", evt.evt_tx_hash);
         row.set("evt_index", evt.evt_index as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("evt_block_time", value); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("evt_block_time", value);
+        }
         row.set("evt_block_number", evt.evt_block_number as i64);
         row.set("id", evt.id);
         row.set("hub_id", evt.hub_id);
@@ -408,10 +546,14 @@ pub fn events_to_database_changes(
         let row_id = event_row_id(&evt.evt_tx_hash, evt.evt_index);
         let row = tables.create_row("raw_registry_protocol_bonus_config_set", row_id);
         row.set("_block_number_", evt.evt_block_number as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("_block_timestamp_", value.clone()); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("_block_timestamp_", value.clone());
+        }
         row.set("evt_tx_hash", evt.evt_tx_hash);
         row.set("evt_index", evt.evt_index as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("evt_block_time", value); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("evt_block_time", value);
+        }
         row.set("evt_block_number", evt.evt_block_number as i64);
         row.set("duration_blocks", evt.duration_blocks as i64);
         row.set("start_percentage_bps", evt.start_percentage_bps as i64);
@@ -421,10 +563,14 @@ pub fn events_to_database_changes(
         let row_id = event_row_id(&evt.evt_tx_hash, evt.evt_index);
         let row = tables.create_row("raw_registry_protocol_fee_set", row_id);
         row.set("_block_number_", evt.evt_block_number as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("_block_timestamp_", value.clone()); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("_block_timestamp_", value.clone());
+        }
         row.set("evt_tx_hash", evt.evt_tx_hash);
         row.set("evt_index", evt.evt_index as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("evt_block_time", value); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("evt_block_time", value);
+        }
         row.set("evt_block_number", evt.evt_block_number as i64);
         row.set("activity", evt.activity as i64);
         row.set("fee_bps", evt.fee_bps as i64);
@@ -434,10 +580,14 @@ pub fn events_to_database_changes(
         let row_id = event_row_id(&evt.evt_tx_hash, evt.evt_index);
         let row = tables.create_row("raw_registry_protocol_limit_set", row_id);
         row.set("_block_number_", evt.evt_block_number as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("_block_timestamp_", value.clone()); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("_block_timestamp_", value.clone());
+        }
         row.set("evt_tx_hash", evt.evt_tx_hash);
         row.set("evt_index", evt.evt_index as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("evt_block_time", value); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("evt_block_time", value);
+        }
         row.set("evt_block_number", evt.evt_block_number as i64);
         row.set("activity", evt.activity as i64);
         row.set("max_fee_bps", evt.max_fee_bps as i64);
@@ -447,10 +597,14 @@ pub fn events_to_database_changes(
         let row_id = event_row_id(&evt.evt_tx_hash, evt.evt_index);
         let row = tables.create_row("raw_registry_referral_set", row_id);
         row.set("_block_number_", evt.evt_block_number as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("_block_timestamp_", value.clone()); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("_block_timestamp_", value.clone());
+        }
         row.set("evt_tx_hash", evt.evt_tx_hash);
         row.set("evt_index", evt.evt_index as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("evt_block_time", value); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("evt_block_time", value);
+        }
         row.set("evt_block_number", evt.evt_block_number as i64);
         row.set("referee", bytes_to_hex_prefixed(&evt.referee));
         row.set("referrer", bytes_to_hex_prefixed(&evt.referrer));
@@ -462,10 +616,14 @@ pub fn events_to_database_changes(
         let row_id = event_row_id(&evt.evt_tx_hash, evt.evt_index);
         let row = tables.create_row("raw_registry_referral_status_updated", row_id);
         row.set("_block_number_", evt.evt_block_number as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("_block_timestamp_", value.clone()); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("_block_timestamp_", value.clone());
+        }
         row.set("evt_tx_hash", evt.evt_tx_hash);
         row.set("evt_index", evt.evt_index as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("evt_block_time", value); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("evt_block_time", value);
+        }
         row.set("evt_block_number", evt.evt_block_number as i64);
         row.set("referee", bytes_to_hex_prefixed(&evt.referee));
         row.set("reward_active", evt.reward_active);
@@ -476,10 +634,14 @@ pub fn events_to_database_changes(
         let row_id = event_row_id(&evt.evt_tx_hash, evt.evt_index);
         let row = tables.create_row("raw_registry_referrals_controller_updated", row_id);
         row.set("_block_number_", evt.evt_block_number as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("_block_timestamp_", value.clone()); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("_block_timestamp_", value.clone());
+        }
         row.set("evt_tx_hash", evt.evt_tx_hash);
         row.set("evt_index", evt.evt_index as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("evt_block_time", value); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("evt_block_time", value);
+        }
         row.set("evt_block_number", evt.evt_block_number as i64);
         row.set("old_controller", bytes_to_hex_prefixed(&evt.old_controller));
         row.set("new_controller", bytes_to_hex_prefixed(&evt.new_controller));
@@ -489,15 +651,25 @@ pub fn events_to_database_changes(
         let row_id = event_row_id(&evt.evt_tx_hash, evt.evt_index);
         let row = tables.create_row("raw_registry_registry_initialized", row_id);
         row.set("_block_number_", evt.evt_block_number as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("_block_timestamp_", value.clone()); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("_block_timestamp_", value.clone());
+        }
         row.set("evt_tx_hash", evt.evt_tx_hash);
         row.set("evt_index", evt.evt_index as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("evt_block_time", value); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("evt_block_time", value);
+        }
         row.set("evt_block_number", evt.evt_block_number as i64);
         row.set("owner", bytes_to_hex_prefixed(&evt.owner));
-        row.set("trusted_forwarder", bytes_to_hex_prefixed(&evt.trusted_forwarder));
+        row.set(
+            "trusted_forwarder",
+            bytes_to_hex_prefixed(&evt.trusted_forwarder),
+        );
         row.set("payment_token", bytes_to_hex_prefixed(&evt.payment_token));
-        row.set("protocol_fee_to", bytes_to_hex_prefixed(&evt.protocol_fee_to));
+        row.set(
+            "protocol_fee_to",
+            bytes_to_hex_prefixed(&evt.protocol_fee_to),
+        );
         row.set("endpoint", bytes_to_hex_prefixed(&evt.endpoint));
         row.set("swap_router", bytes_to_hex_prefixed(&evt.swap_router));
     }
@@ -519,10 +691,14 @@ pub fn events_to_database_changes(
         let row_id = event_row_id(&evt.evt_tx_hash, evt.evt_index);
         let row = tables.create_row("raw_registry_token_created", row_id);
         row.set("_block_number_", evt.evt_block_number as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("_block_timestamp_", value.clone()); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("_block_timestamp_", value.clone());
+        }
         row.set("evt_tx_hash", evt.evt_tx_hash);
         row.set("evt_index", evt.evt_index as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("evt_block_time", value); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("evt_block_time", value);
+        }
         row.set("evt_block_number", evt.evt_block_number as i64);
         row.set("token_address", evt.token_address);
         row.set("token_id", evt.token_id);
@@ -551,10 +727,14 @@ pub fn events_to_database_changes(
         let row_id = event_row_id(&evt.evt_tx_hash, evt.evt_index);
         let row = tables.create_row("raw_registry_token_registered", row_id);
         row.set("_block_number_", evt.evt_block_number as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("_block_timestamp_", value.clone()); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("_block_timestamp_", value.clone());
+        }
         row.set("evt_tx_hash", evt.evt_tx_hash);
         row.set("evt_index", evt.evt_index as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("evt_block_time", value); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("evt_block_time", value);
+        }
         row.set("evt_block_number", evt.evt_block_number as i64);
         row.set("token_id", evt.token_id);
         row.set("token_address", token_address);
@@ -567,10 +747,14 @@ pub fn events_to_database_changes(
         let row_id = event_row_id(&evt.evt_tx_hash, evt.evt_index);
         let row = tables.create_row("raw_registry_token_template_reset", row_id);
         row.set("_block_number_", evt.evt_block_number as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("_block_timestamp_", value.clone()); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("_block_timestamp_", value.clone());
+        }
         row.set("evt_tx_hash", evt.evt_tx_hash);
         row.set("evt_index", evt.evt_index as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("evt_block_time", value); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("evt_block_time", value);
+        }
         row.set("evt_block_number", evt.evt_block_number as i64);
         row.set("template_id", bytes_to_hex_prefixed(&evt.template_id));
     }
@@ -579,14 +763,21 @@ pub fn events_to_database_changes(
         let row_id = event_row_id(&evt.evt_tx_hash, evt.evt_index);
         let row = tables.create_row("raw_registry_token_template_set", row_id);
         row.set("_block_number_", evt.evt_block_number as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("_block_timestamp_", value.clone()); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("_block_timestamp_", value.clone());
+        }
         row.set("evt_tx_hash", evt.evt_tx_hash);
         row.set("evt_index", evt.evt_index as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("evt_block_time", value); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("evt_block_time", value);
+        }
         row.set("evt_block_number", evt.evt_block_number as i64);
         row.set("template_id", bytes_to_hex_prefixed(&evt.template_id));
         row.set("token_type", evt.token_type as i64);
-        row.set("implementation_address", bytes_to_hex_prefixed(&evt.implementation_address));
+        row.set(
+            "implementation_address",
+            bytes_to_hex_prefixed(&evt.implementation_address),
+        );
         row.set("total_supply", evt.total_supply);
     }
 
@@ -594,12 +785,19 @@ pub fn events_to_database_changes(
         let row_id = event_row_id(&evt.evt_tx_hash, evt.evt_index);
         let row = tables.create_row("raw_registry_whitelist_toggled", row_id);
         row.set("_block_number_", evt.evt_block_number as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("_block_timestamp_", value.clone()); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("_block_timestamp_", value.clone());
+        }
         row.set("evt_tx_hash", evt.evt_tx_hash);
         row.set("evt_index", evt.evt_index as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("evt_block_time", value); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("evt_block_time", value);
+        }
         row.set("evt_block_number", evt.evt_block_number as i64);
-        row.set("contract_address", bytes_to_hex_prefixed(&evt.contract_address));
+        row.set(
+            "contract_address",
+            bytes_to_hex_prefixed(&evt.contract_address),
+        );
         row.set("whitelisted", evt.whitelisted);
     }
 
@@ -607,10 +805,14 @@ pub fn events_to_database_changes(
         let row_id = event_row_id(&evt.evt_tx_hash, evt.evt_index);
         let row = tables.create_row("raw_oapp_eth_withdrawn", row_id);
         row.set("_block_number_", evt.evt_block_number as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("_block_timestamp_", value.clone()); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("_block_timestamp_", value.clone());
+        }
         row.set("evt_tx_hash", evt.evt_tx_hash);
         row.set("evt_index", evt.evt_index as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("evt_block_time", value); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("evt_block_time", value);
+        }
         row.set("evt_block_number", evt.evt_block_number as i64);
         row.set("owner", bytes_to_hex_prefixed(&evt.owner));
         row.set("amount", evt.amount);
@@ -620,10 +822,14 @@ pub fn events_to_database_changes(
         let row_id = event_row_id(&evt.evt_tx_hash, evt.evt_index);
         let row = tables.create_row("raw_oapp_enforced_option_set", row_id);
         row.set("_block_number_", evt.evt_block_number as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("_block_timestamp_", value.clone()); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("_block_timestamp_", value.clone());
+        }
         row.set("evt_tx_hash", evt.evt_tx_hash);
         row.set("evt_index", evt.evt_index as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("evt_block_time", value); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("evt_block_time", value);
+        }
         row.set("evt_block_number", evt.evt_block_number as i64);
     }
 
@@ -631,10 +837,14 @@ pub fn events_to_database_changes(
         let row_id = event_row_id(&evt.evt_tx_hash, evt.evt_index);
         let row = tables.create_row("raw_oapp_message_received", row_id);
         row.set("_block_number_", evt.evt_block_number as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("_block_timestamp_", value.clone()); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("_block_timestamp_", value.clone());
+        }
         row.set("evt_tx_hash", evt.evt_tx_hash);
         row.set("evt_index", evt.evt_index as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("evt_block_time", value); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("evt_block_time", value);
+        }
         row.set("evt_block_number", evt.evt_block_number as i64);
         row.set("guid", bytes_to_hex_prefixed(&evt.guid));
         row.set("src_eid", evt.src_eid as i64);
@@ -645,10 +855,14 @@ pub fn events_to_database_changes(
         let row_id = event_row_id(&evt.evt_tx_hash, evt.evt_index);
         let row = tables.create_row("raw_oapp_operation_created", row_id);
         row.set("_block_number_", evt.evt_block_number as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("_block_timestamp_", value.clone()); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("_block_timestamp_", value.clone());
+        }
         row.set("evt_tx_hash", evt.evt_tx_hash);
         row.set("evt_index", evt.evt_index as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("evt_block_time", value); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("evt_block_time", value);
+        }
         row.set("evt_block_number", evt.evt_block_number as i64);
         row.set("operation_id", evt.operation_id as i64);
         row.set("token_id", bytes_to_hex_prefixed(&evt.token_id));
@@ -661,10 +875,14 @@ pub fn events_to_database_changes(
         let row_id = event_row_id(&evt.evt_tx_hash, evt.evt_index);
         let row = tables.create_row("raw_oapp_ownership_transferred", row_id);
         row.set("_block_number_", evt.evt_block_number as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("_block_timestamp_", value.clone()); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("_block_timestamp_", value.clone());
+        }
         row.set("evt_tx_hash", evt.evt_tx_hash);
         row.set("evt_index", evt.evt_index as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("evt_block_time", value); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("evt_block_time", value);
+        }
         row.set("evt_block_number", evt.evt_block_number as i64);
         row.set("user", bytes_to_hex_prefixed(&evt.user));
         row.set("new_owner", bytes_to_hex_prefixed(&evt.new_owner));
@@ -674,10 +892,14 @@ pub fn events_to_database_changes(
         let row_id = event_row_id(&evt.evt_tx_hash, evt.evt_index);
         let row = tables.create_row("raw_oapp_peer_set", row_id);
         row.set("_block_number_", evt.evt_block_number as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("_block_timestamp_", value.clone()); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("_block_timestamp_", value.clone());
+        }
         row.set("evt_tx_hash", evt.evt_tx_hash);
         row.set("evt_index", evt.evt_index as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("evt_block_time", value); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("evt_block_time", value);
+        }
         row.set("evt_block_number", evt.evt_block_number as i64);
         row.set("eid", evt.eid as i64);
         row.set("peer", bytes_to_hex_prefixed(&evt.peer));
@@ -687,22 +909,36 @@ pub fn events_to_database_changes(
         let row_id = event_row_id(&evt.evt_tx_hash, evt.evt_index);
         let row = tables.create_row("raw_oapp_solana_liquidity_manager_set", row_id);
         row.set("_block_number_", evt.evt_block_number as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("_block_timestamp_", value.clone()); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("_block_timestamp_", value.clone());
+        }
         row.set("evt_tx_hash", evt.evt_tx_hash);
         row.set("evt_index", evt.evt_index as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("evt_block_time", value); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("evt_block_time", value);
+        }
         row.set("evt_block_number", evt.evt_block_number as i64);
-        row.set("liquidity_manager", bytes_to_hex_prefixed(&evt.liquidity_manager));
+        row.set(
+            "liquidity_manager",
+            bytes_to_hex_prefixed(&evt.liquidity_manager),
+        );
     }
 
-    for evt in events.oapp_token_liquidity_initialized_externallies.into_iter() {
+    for evt in events
+        .oapp_token_liquidity_initialized_externallies
+        .into_iter()
+    {
         let row_id = event_row_id(&evt.evt_tx_hash, evt.evt_index);
         let row = tables.create_row("raw_oapp_token_liquidity_initialized_externally", row_id);
         row.set("_block_number_", evt.evt_block_number as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("_block_timestamp_", value.clone()); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("_block_timestamp_", value.clone());
+        }
         row.set("evt_tx_hash", evt.evt_tx_hash);
         row.set("evt_index", evt.evt_index as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("evt_block_time", value); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("evt_block_time", value);
+        }
         row.set("evt_block_number", evt.evt_block_number as i64);
         row.set("token_id", bytes_to_hex_prefixed(&evt.token_id));
         row.set("src_eid", evt.src_eid as i64);
@@ -715,10 +951,14 @@ pub fn events_to_database_changes(
         let row_id = event_row_id(&evt.evt_tx_hash, evt.evt_index);
         let row = tables.create_row("raw_oapp_token_registered_externally", row_id);
         row.set("_block_number_", evt.evt_block_number as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("_block_timestamp_", value.clone()); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("_block_timestamp_", value.clone());
+        }
         row.set("evt_tx_hash", evt.evt_tx_hash);
         row.set("evt_index", evt.evt_index as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("evt_block_time", value); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("evt_block_time", value);
+        }
         row.set("evt_block_number", evt.evt_block_number as i64);
         row.set("token_id", bytes_to_hex_prefixed(&evt.token_id));
         row.set("src_eid", evt.src_eid as i64);
@@ -730,10 +970,14 @@ pub fn events_to_database_changes(
         let row_id = event_row_id(&evt.evt_tx_hash, evt.evt_index);
         let row = tables.create_row("raw_oapp_token_registration_ack", row_id);
         row.set("_block_number_", evt.evt_block_number as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("_block_timestamp_", value.clone()); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("_block_timestamp_", value.clone());
+        }
         row.set("evt_tx_hash", evt.evt_tx_hash);
         row.set("evt_index", evt.evt_index as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("evt_block_time", value); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("evt_block_time", value);
+        }
         row.set("evt_block_number", evt.evt_block_number as i64);
         row.set("guid", bytes_to_hex_prefixed(&evt.guid));
         row.set("success", evt.success);
@@ -743,16 +987,23 @@ pub fn events_to_database_changes(
         let row_id = event_row_id(&evt.evt_tx_hash, evt.evt_index);
         let row = tables.create_row("raw_oapp_token_registration_ack_processed", row_id);
         row.set("_block_number_", evt.evt_block_number as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("_block_timestamp_", value.clone()); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("_block_timestamp_", value.clone());
+        }
         row.set("evt_tx_hash", evt.evt_tx_hash);
         row.set("evt_index", evt.evt_index as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("evt_block_time", value); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("evt_block_time", value);
+        }
         row.set("evt_block_number", evt.evt_block_number as i64);
         row.set("token_id", bytes_to_hex_prefixed(&evt.token_id));
         row.set("src_eid", evt.src_eid as i64);
         row.set("dst_eid", evt.dst_eid as i64);
         row.set("success", evt.success);
-        row.set("remote_token_address", bytes_to_hex_prefixed(&evt.remote_token_address));
+        row.set(
+            "remote_token_address",
+            bytes_to_hex_prefixed(&evt.remote_token_address),
+        );
         row.set("operation_id", evt.operation_id as i64);
     }
 
@@ -760,10 +1011,14 @@ pub fn events_to_database_changes(
         let row_id = event_row_id(&evt.evt_tx_hash, evt.evt_index);
         let row = tables.create_row("raw_oapp_token_registration_ack_sent", row_id);
         row.set("_block_number_", evt.evt_block_number as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("_block_timestamp_", value.clone()); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("_block_timestamp_", value.clone());
+        }
         row.set("evt_tx_hash", evt.evt_tx_hash);
         row.set("evt_index", evt.evt_index as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("evt_block_time", value); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("evt_block_time", value);
+        }
         row.set("evt_block_number", evt.evt_block_number as i64);
         row.set("token_id", bytes_to_hex_prefixed(&evt.token_id));
         row.set("dst_eid", evt.dst_eid as i64);
@@ -775,10 +1030,14 @@ pub fn events_to_database_changes(
         let row_id = event_row_id(&evt.evt_tx_hash, evt.evt_index);
         let row = tables.create_row("raw_oapp_token_registration_initiated", row_id);
         row.set("_block_number_", evt.evt_block_number as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("_block_timestamp_", value.clone()); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("_block_timestamp_", value.clone());
+        }
         row.set("evt_tx_hash", evt.evt_tx_hash);
         row.set("evt_index", evt.evt_index as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("evt_block_time", value); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("evt_block_time", value);
+        }
         row.set("evt_block_number", evt.evt_block_number as i64);
         row.set("token_id", bytes_to_hex_prefixed(&evt.token_id));
         row.set("dst_eid", evt.dst_eid as i64);
@@ -789,14 +1048,21 @@ pub fn events_to_database_changes(
         let row_id = event_row_id(&evt.evt_tx_hash, evt.evt_index);
         let row = tables.create_row("raw_oapp_token_registration_received", row_id);
         row.set("_block_number_", evt.evt_block_number as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("_block_timestamp_", value.clone()); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("_block_timestamp_", value.clone());
+        }
         row.set("evt_tx_hash", evt.evt_tx_hash);
         row.set("evt_index", evt.evt_index as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("evt_block_time", value); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("evt_block_time", value);
+        }
         row.set("evt_block_number", evt.evt_block_number as i64);
         row.set("token_id", bytes_to_hex_prefixed(&evt.token_id));
         row.set("src_eid", evt.src_eid as i64);
-        row.set("source_token_address", bytes_to_hex_prefixed(&evt.source_token_address));
+        row.set(
+            "source_token_address",
+            bytes_to_hex_prefixed(&evt.source_token_address),
+        );
         row.set("operation_id", evt.operation_id as i64);
     }
 
@@ -804,10 +1070,14 @@ pub fn events_to_database_changes(
         let row_id = event_row_id(&evt.evt_tx_hash, evt.evt_index);
         let row = tables.create_row("raw_manager_builder_activity_fee_set", row_id);
         row.set("_block_number_", evt.evt_block_number as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("_block_timestamp_", value.clone()); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("_block_timestamp_", value.clone());
+        }
         row.set("evt_tx_hash", evt.evt_tx_hash);
         row.set("evt_index", evt.evt_index as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("evt_block_time", value); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("evt_block_time", value);
+        }
         row.set("evt_block_number", evt.evt_block_number as i64);
         row.set("builder", bytes_to_hex_prefixed(&evt.builder));
         row.set("activity_id", bytes_to_hex_prefixed(&evt.activity_id));
@@ -819,10 +1089,14 @@ pub fn events_to_database_changes(
         let row_id = event_row_id(&evt.evt_tx_hash, evt.evt_index);
         let row = tables.create_row("raw_manager_external_whitelist_changed", row_id);
         row.set("_block_number_", evt.evt_block_number as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("_block_timestamp_", value.clone()); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("_block_timestamp_", value.clone());
+        }
         row.set("evt_tx_hash", evt.evt_tx_hash);
         row.set("evt_index", evt.evt_index as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("evt_block_time", value); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("evt_block_time", value);
+        }
         row.set("evt_block_number", evt.evt_block_number as i64);
         row.set("token_id", bytes_to_hex_prefixed(&evt.token_id));
         row.set("signer", bytes_to_hex_prefixed(&evt.signer));
@@ -833,14 +1107,21 @@ pub fn events_to_database_changes(
         let row_id = event_row_id(&evt.evt_tx_hash, evt.evt_index);
         let row = tables.create_row("raw_manager_fees_paid", row_id);
         row.set("_block_number_", evt.evt_block_number as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("_block_timestamp_", value.clone()); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("_block_timestamp_", value.clone());
+        }
         row.set("evt_tx_hash", evt.evt_tx_hash);
         row.set("evt_index", evt.evt_index as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("evt_block_time", value); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("evt_block_time", value);
+        }
         row.set("evt_block_number", evt.evt_block_number as i64);
         row.set("hub_id", evt.hub_id);
         row.set("activity_id", bytes_to_hex_prefixed(&evt.activity_id));
-        row.set("contract_address", bytes_to_hex_prefixed(&evt.contract_address));
+        row.set(
+            "contract_address",
+            bytes_to_hex_prefixed(&evt.contract_address),
+        );
         row.set("sender", bytes_to_hex_prefixed(&evt.sender));
         row.set("protocol_amount", evt.protocol_amount);
         row.set("hub_amount", evt.hub_amount);
@@ -853,10 +1134,14 @@ pub fn events_to_database_changes(
         let row_id = event_row_id(&evt.evt_tx_hash, evt.evt_index);
         let row = tables.create_row("raw_manager_initialized", row_id);
         row.set("_block_number_", evt.evt_block_number as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("_block_timestamp_", value.clone()); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("_block_timestamp_", value.clone());
+        }
         row.set("evt_tx_hash", evt.evt_tx_hash);
         row.set("evt_index", evt.evt_index as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("evt_block_time", value); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("evt_block_time", value);
+        }
         row.set("evt_block_number", evt.evt_block_number as i64);
         row.set("version", evt.version as i64);
     }
@@ -865,10 +1150,14 @@ pub fn events_to_database_changes(
         let row_id = event_row_id(&evt.evt_tx_hash, evt.evt_index);
         let row = tables.create_row("raw_manager_ownership_transferred", row_id);
         row.set("_block_number_", evt.evt_block_number as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("_block_timestamp_", value.clone()); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("_block_timestamp_", value.clone());
+        }
         row.set("evt_tx_hash", evt.evt_tx_hash);
         row.set("evt_index", evt.evt_index as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("evt_block_time", value); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("evt_block_time", value);
+        }
         row.set("evt_block_number", evt.evt_block_number as i64);
         row.set("user", bytes_to_hex_prefixed(&evt.user));
         row.set("new_owner", bytes_to_hex_prefixed(&evt.new_owner));
@@ -892,10 +1181,14 @@ pub fn events_to_database_changes(
         let row_id = event_row_id(&evt.evt_tx_hash, evt.evt_index);
         let row = tables.create_row("raw_launchpad_buy", row_id);
         row.set("_block_number_", evt.evt_block_number as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("_block_timestamp_", value.clone()); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("_block_timestamp_", value.clone());
+        }
         row.set("evt_tx_hash", evt.evt_tx_hash);
         row.set("evt_index", evt.evt_index as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("evt_block_time", value); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("evt_block_time", value);
+        }
         row.set("evt_block_number", evt.evt_block_number as i64);
         row.set("token_id", token_id);
         row.set("token_address", evt.token_address);
@@ -913,16 +1206,23 @@ pub fn events_to_database_changes(
         let row_id = event_row_id(&evt.evt_tx_hash, evt.evt_index);
         let row = tables.create_row("raw_launchpad_new_pool_type", row_id);
         row.set("_block_number_", evt.evt_block_number as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("_block_timestamp_", value.clone()); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("_block_timestamp_", value.clone());
+        }
         row.set("evt_tx_hash", evt.evt_tx_hash);
         row.set("evt_index", evt.evt_index as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("evt_block_time", value); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("evt_block_time", value);
+        }
         row.set("evt_block_number", evt.evt_block_number as i64);
         row.set("pool_type_id", evt.pool_type_id);
         row.set("migration_supply", evt.migration_supply);
         row.set("price_at_migration_supply", evt.price_at_migration_supply);
         row.set("initial_token_deposit_wad", evt.initial_token_deposit_wad);
-        row.set("initial_reserve_deposit_wad", evt.initial_reserve_deposit_wad);
+        row.set(
+            "initial_reserve_deposit_wad",
+            evt.initial_reserve_deposit_wad,
+        );
         row.set("creator_reward", evt.creator_reward);
         row.set("migration_reserve_supply", evt.migration_reserve_supply);
         row.set("migration_token_supply", evt.migration_token_supply);
@@ -933,10 +1233,14 @@ pub fn events_to_database_changes(
         let row_id = event_row_id(&evt.evt_tx_hash, evt.evt_index);
         let row = tables.create_row("raw_launchpad_ownership_transferred", row_id);
         row.set("_block_number_", evt.evt_block_number as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("_block_timestamp_", value.clone()); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("_block_timestamp_", value.clone());
+        }
         row.set("evt_tx_hash", evt.evt_tx_hash);
         row.set("evt_index", evt.evt_index as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("evt_block_time", value); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("evt_block_time", value);
+        }
         row.set("evt_block_number", evt.evt_block_number as i64);
         row.set("user", bytes_to_hex_prefixed(&evt.user));
         row.set("new_owner", bytes_to_hex_prefixed(&evt.new_owner));
@@ -946,10 +1250,14 @@ pub fn events_to_database_changes(
         let row_id = event_row_id(&evt.evt_tx_hash, evt.evt_index);
         let row = tables.create_row("raw_launchpad_phase_expiry_config_set", row_id);
         row.set("_block_number_", evt.evt_block_number as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("_block_timestamp_", value.clone()); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("_block_timestamp_", value.clone());
+        }
         row.set("evt_tx_hash", evt.evt_tx_hash);
         row.set("evt_index", evt.evt_index as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("evt_block_time", value); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("evt_block_time", value);
+        }
         row.set("evt_block_number", evt.evt_block_number as i64);
         row.set("phase1_expiry_blocks", evt.phase1_expiry_blocks as i64);
         row.set("phase2_expiry_blocks", evt.phase2_expiry_blocks as i64);
@@ -973,10 +1281,14 @@ pub fn events_to_database_changes(
         let row_id = event_row_id(&evt.evt_tx_hash, evt.evt_index);
         let row = tables.create_row("raw_launchpad_sell", row_id);
         row.set("_block_number_", evt.evt_block_number as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("_block_timestamp_", value.clone()); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("_block_timestamp_", value.clone());
+        }
         row.set("evt_tx_hash", evt.evt_tx_hash);
         row.set("evt_index", evt.evt_index as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("evt_block_time", value); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("evt_block_time", value);
+        }
         row.set("evt_block_number", evt.evt_block_number as i64);
         row.set("token_id", token_id);
         row.set("token_address", evt.token_address);
@@ -990,7 +1302,6 @@ pub fn events_to_database_changes(
     }
 
     for evt in events.launchpad_graduations.into_iter() {
-        let token_id = bytes_to_hex_prefixed(&evt.token_id);
         upsert_dim_token(
             &mut tables,
             &evt.token_layer_id,
@@ -1007,12 +1318,15 @@ pub fn events_to_database_changes(
         let row_id = event_row_id(&evt.evt_tx_hash, evt.evt_index);
         let row = tables.create_row("raw_launchpad_graduation", row_id);
         row.set("_block_number_", evt.evt_block_number as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("_block_timestamp_", value.clone()); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("_block_timestamp_", value.clone());
+        }
         row.set("evt_tx_hash", evt.evt_tx_hash);
         row.set("evt_index", evt.evt_index as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("evt_block_time", value); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("evt_block_time", value);
+        }
         row.set("evt_block_number", evt.evt_block_number as i64);
-        row.set("token_id", token_id);
         row.set("token_address", evt.token_address);
         row.set("is_external", evt.is_external);
         row.set("final_supply", evt.final_supply);
@@ -1024,10 +1338,14 @@ pub fn events_to_database_changes(
         let row_id = event_row_id(&evt.evt_tx_hash, evt.evt_index);
         let row = tables.create_row("raw_ip_approval", row_id);
         row.set("_block_number_", evt.evt_block_number as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("_block_timestamp_", value.clone()); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("_block_timestamp_", value.clone());
+        }
         row.set("evt_tx_hash", evt.evt_tx_hash);
         row.set("evt_index", evt.evt_index as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("evt_block_time", value); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("evt_block_time", value);
+        }
         row.set("evt_block_number", evt.evt_block_number as i64);
         row.set("owner", bytes_to_hex_prefixed(&evt.owner));
         row.set("spender", bytes_to_hex_prefixed(&evt.spender));
@@ -1038,10 +1356,14 @@ pub fn events_to_database_changes(
         let row_id = event_row_id(&evt.evt_tx_hash, evt.evt_index);
         let row = tables.create_row("raw_ip_approval_for_all", row_id);
         row.set("_block_number_", evt.evt_block_number as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("_block_timestamp_", value.clone()); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("_block_timestamp_", value.clone());
+        }
         row.set("evt_tx_hash", evt.evt_tx_hash);
         row.set("evt_index", evt.evt_index as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("evt_block_time", value); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("evt_block_time", value);
+        }
         row.set("evt_block_number", evt.evt_block_number as i64);
         row.set("owner", bytes_to_hex_prefixed(&evt.owner));
         row.set("operator", bytes_to_hex_prefixed(&evt.operator));
@@ -1052,10 +1374,14 @@ pub fn events_to_database_changes(
         let row_id = event_row_id(&evt.evt_tx_hash, evt.evt_index);
         let row = tables.create_row("raw_ip_manager_changed", row_id);
         row.set("_block_number_", evt.evt_block_number as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("_block_timestamp_", value.clone()); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("_block_timestamp_", value.clone());
+        }
         row.set("evt_tx_hash", evt.evt_tx_hash);
         row.set("evt_index", evt.evt_index as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("evt_block_time", value); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("evt_block_time", value);
+        }
         row.set("evt_block_number", evt.evt_block_number as i64);
         row.set("new_manager", bytes_to_hex_prefixed(&evt.new_manager));
     }
@@ -1064,10 +1390,14 @@ pub fn events_to_database_changes(
         let row_id = event_row_id(&evt.evt_tx_hash, evt.evt_index);
         let row = tables.create_row("raw_ip_transfer", row_id);
         row.set("_block_number_", evt.evt_block_number as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("_block_timestamp_", value.clone()); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("_block_timestamp_", value.clone());
+        }
         row.set("evt_tx_hash", evt.evt_tx_hash);
         row.set("evt_index", evt.evt_index as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("evt_block_time", value); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("evt_block_time", value);
+        }
         row.set("evt_block_number", evt.evt_block_number as i64);
         row.set("from", bytes_to_hex_prefixed(&evt.from));
         row.set("to", bytes_to_hex_prefixed(&evt.to));
@@ -1078,10 +1408,14 @@ pub fn events_to_database_changes(
         let row_id = event_row_id(&evt.evt_tx_hash, evt.evt_index);
         let row = tables.create_row("raw_liquidity_mananager_fees_collected", row_id);
         row.set("_block_number_", evt.evt_block_number as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("_block_timestamp_", value.clone()); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("_block_timestamp_", value.clone());
+        }
         row.set("evt_tx_hash", evt.evt_tx_hash);
         row.set("evt_index", evt.evt_index as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("evt_block_time", value); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("evt_block_time", value);
+        }
         row.set("evt_block_number", evt.evt_block_number as i64);
         row.set("key_id", bytes_to_hex_prefixed(&evt.key_id));
         row.set("token_layer_id", bytes_to_hex_prefixed(&evt.key_id));
@@ -1094,10 +1428,14 @@ pub fn events_to_database_changes(
         let row_id = event_row_id(&evt.evt_tx_hash, evt.evt_index);
         let row = tables.create_row("raw_liquidity_mananager_fees_distributed", row_id);
         row.set("_block_number_", evt.evt_block_number as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("_block_timestamp_", value.clone()); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("_block_timestamp_", value.clone());
+        }
         row.set("evt_tx_hash", evt.evt_tx_hash);
         row.set("evt_index", evt.evt_index as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("evt_block_time", value); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("evt_block_time", value);
+        }
         row.set("evt_block_number", evt.evt_block_number as i64);
         row.set("key_id", bytes_to_hex_prefixed(&evt.key_id));
         row.set("token_layer_id", bytes_to_hex_prefixed(&evt.key_id));
@@ -1107,19 +1445,29 @@ pub fn events_to_database_changes(
         row.set("owner", bytes_to_hex_prefixed(&evt.owner));
         row.set("amount0_owner", evt.amount0_owner);
         row.set("amount1_owner", evt.amount1_owner);
-        row.set("protocol_fee_to", bytes_to_hex_prefixed(&evt.protocol_fee_to));
+        row.set(
+            "protocol_fee_to",
+            bytes_to_hex_prefixed(&evt.protocol_fee_to),
+        );
         row.set("amount0_protocol", evt.amount0_protocol);
         row.set("amount1_protocol", evt.amount1_protocol);
     }
 
-    for evt in events.liquidity_mananager_initial_position_minteds.into_iter() {
+    for evt in events
+        .liquidity_mananager_initial_position_minteds
+        .into_iter()
+    {
         let row_id = event_row_id(&evt.evt_tx_hash, evt.evt_index);
         let row = tables.create_row("raw_liquidity_mananager_initial_position_minted", row_id);
         row.set("_block_number_", evt.evt_block_number as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("_block_timestamp_", value.clone()); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("_block_timestamp_", value.clone());
+        }
         row.set("evt_tx_hash", evt.evt_tx_hash);
         row.set("evt_index", evt.evt_index as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("evt_block_time", value); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("evt_block_time", value);
+        }
         row.set("evt_block_number", evt.evt_block_number as i64);
         row.set("token_id", evt.token_id);
         row.set("key_id", bytes_to_hex_prefixed(&evt.key_id));
@@ -1137,10 +1485,14 @@ pub fn events_to_database_changes(
         let row_id = event_row_id(&evt.evt_tx_hash, evt.evt_index);
         let row = tables.create_row("raw_liquidity_mananager_initialized", row_id);
         row.set("_block_number_", evt.evt_block_number as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("_block_timestamp_", value.clone()); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("_block_timestamp_", value.clone());
+        }
         row.set("evt_tx_hash", evt.evt_tx_hash);
         row.set("evt_index", evt.evt_index as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("evt_block_time", value); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("evt_block_time", value);
+        }
         row.set("evt_block_number", evt.evt_block_number as i64);
         row.set("version", evt.version as i64);
     }
@@ -1149,10 +1501,14 @@ pub fn events_to_database_changes(
         let row_id = event_row_id(&evt.evt_tx_hash, evt.evt_index);
         let row = tables.create_row("raw_liquidity_mananager_liquidity_increased", row_id);
         row.set("_block_number_", evt.evt_block_number as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("_block_timestamp_", value.clone()); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("_block_timestamp_", value.clone());
+        }
         row.set("evt_tx_hash", evt.evt_tx_hash);
         row.set("evt_index", evt.evt_index as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("evt_block_time", value); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("evt_block_time", value);
+        }
         row.set("evt_block_number", evt.evt_block_number as i64);
         row.set("token_id", evt.token_id);
         row.set("liquidity_added", evt.liquidity_added);
@@ -1160,46 +1516,79 @@ pub fn events_to_database_changes(
         row.set("amount1", evt.amount1);
     }
 
-    for evt in events.liquidity_mananager_liquidity_manager_initializeds.into_iter() {
+    for evt in events
+        .liquidity_mananager_liquidity_manager_initializeds
+        .into_iter()
+    {
         let row_id = event_row_id(&evt.evt_tx_hash, evt.evt_index);
-        let row = tables.create_row("raw_liquidity_mananager_liquidity_manager_initialized", row_id);
+        let row = tables.create_row(
+            "raw_liquidity_mananager_liquidity_manager_initialized",
+            row_id,
+        );
         row.set("_block_number_", evt.evt_block_number as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("_block_timestamp_", value.clone()); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("_block_timestamp_", value.clone());
+        }
         row.set("evt_tx_hash", evt.evt_tx_hash);
         row.set("evt_index", evt.evt_index as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("evt_block_time", value); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("evt_block_time", value);
+        }
         row.set("evt_block_number", evt.evt_block_number as i64);
-        row.set("nonfungible_position_manager", bytes_to_hex_prefixed(&evt.nonfungible_position_manager));
+        row.set(
+            "nonfungible_position_manager",
+            bytes_to_hex_prefixed(&evt.nonfungible_position_manager),
+        );
         row.set("registry", bytes_to_hex_prefixed(&evt.registry));
         row.set("owner", bytes_to_hex_prefixed(&evt.owner));
     }
 
-    for evt in events.liquidity_mananager_liquidity_manager_upgradeds.into_iter() {
+    for evt in events
+        .liquidity_mananager_liquidity_manager_upgradeds
+        .into_iter()
+    {
         let row_id = event_row_id(&evt.evt_tx_hash, evt.evt_index);
         let row = tables.create_row("raw_liquidity_mananager_liquidity_manager_upgraded", row_id);
         row.set("_block_number_", evt.evt_block_number as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("_block_timestamp_", value.clone()); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("_block_timestamp_", value.clone());
+        }
         row.set("evt_tx_hash", evt.evt_tx_hash);
         row.set("evt_index", evt.evt_index as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("evt_block_time", value); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("evt_block_time", value);
+        }
         row.set("evt_block_number", evt.evt_block_number as i64);
-        row.set("old_implementation", bytes_to_hex_prefixed(&evt.old_implementation));
-        row.set("new_implementation", bytes_to_hex_prefixed(&evt.new_implementation));
+        row.set(
+            "old_implementation",
+            bytes_to_hex_prefixed(&evt.old_implementation),
+        );
+        row.set(
+            "new_implementation",
+            bytes_to_hex_prefixed(&evt.new_implementation),
+        );
     }
 
     for evt in events.liquidity_mananager_liquidity_migrateds.into_iter() {
         let row_id = event_row_id(&evt.evt_tx_hash, evt.evt_index);
         let row = tables.create_row("raw_liquidity_mananager_liquidity_migrated", row_id);
         row.set("_block_number_", evt.evt_block_number as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("_block_timestamp_", value.clone()); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("_block_timestamp_", value.clone());
+        }
         row.set("evt_tx_hash", evt.evt_tx_hash);
         row.set("evt_index", evt.evt_index as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("evt_block_time", value); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("evt_block_time", value);
+        }
         row.set("evt_block_number", evt.evt_block_number as i64);
         row.set("token_id", evt.token_id);
         row.set("liquidity", evt.liquidity);
         row.set("fee", evt.fee as i64);
-        row.set("destination_chain", bytes_to_hex_prefixed(&evt.destination_chain));
+        row.set(
+            "destination_chain",
+            bytes_to_hex_prefixed(&evt.destination_chain),
+        );
         row.set("is_default", evt.is_default);
     }
 
@@ -1207,10 +1596,14 @@ pub fn events_to_database_changes(
         let row_id = event_row_id(&evt.evt_tx_hash, evt.evt_index);
         let row = tables.create_row("raw_liquidity_mananager_new_deposit", row_id);
         row.set("_block_number_", evt.evt_block_number as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("_block_timestamp_", value.clone()); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("_block_timestamp_", value.clone());
+        }
         row.set("evt_tx_hash", evt.evt_tx_hash);
         row.set("evt_index", evt.evt_index as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("evt_block_time", value); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("evt_block_time", value);
+        }
         row.set("evt_block_number", evt.evt_block_number as i64);
         row.set("token_id", evt.token_id);
         row.set("liquidity", evt.liquidity);
@@ -1218,14 +1611,21 @@ pub fn events_to_database_changes(
         row.set("token1", bytes_to_hex_prefixed(&evt.token1));
     }
 
-    for evt in events.liquidity_mananager_ownership_transferreds.into_iter() {
+    for evt in events
+        .liquidity_mananager_ownership_transferreds
+        .into_iter()
+    {
         let row_id = event_row_id(&evt.evt_tx_hash, evt.evt_index);
         let row = tables.create_row("raw_liquidity_mananager_ownership_transferred", row_id);
         row.set("_block_number_", evt.evt_block_number as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("_block_timestamp_", value.clone()); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("_block_timestamp_", value.clone());
+        }
         row.set("evt_tx_hash", evt.evt_tx_hash);
         row.set("evt_index", evt.evt_index as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("evt_block_time", value); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("evt_block_time", value);
+        }
         row.set("evt_block_number", evt.evt_block_number as i64);
         row.set("previous_owner", bytes_to_hex_prefixed(&evt.previous_owner));
         row.set("new_owner", bytes_to_hex_prefixed(&evt.new_owner));
@@ -1235,10 +1635,14 @@ pub fn events_to_database_changes(
         let row_id = event_row_id(&evt.evt_tx_hash, evt.evt_index);
         let row = tables.create_row("raw_liquidity_mananager_pool_created", row_id);
         row.set("_block_number_", evt.evt_block_number as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("_block_timestamp_", value.clone()); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("_block_timestamp_", value.clone());
+        }
         row.set("evt_tx_hash", evt.evt_tx_hash);
         row.set("evt_index", evt.evt_index as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("evt_block_time", value); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("evt_block_time", value);
+        }
         row.set("evt_block_number", evt.evt_block_number as i64);
         row.set("token0", bytes_to_hex_prefixed(&evt.token0));
         row.set("token1", bytes_to_hex_prefixed(&evt.token1));
@@ -1247,14 +1651,24 @@ pub fn events_to_database_changes(
         row.set("pool", bytes_to_hex_prefixed(&evt.pool));
     }
 
-    for evt in events.liquidity_mananager_position_created_via_composes.into_iter() {
+    for evt in events
+        .liquidity_mananager_position_created_via_composes
+        .into_iter()
+    {
         let row_id = event_row_id(&evt.evt_tx_hash, evt.evt_index);
-        let row = tables.create_row("raw_liquidity_mananager_position_created_via_compose", row_id);
+        let row = tables.create_row(
+            "raw_liquidity_mananager_position_created_via_compose",
+            row_id,
+        );
         row.set("_block_number_", evt.evt_block_number as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("_block_timestamp_", value.clone()); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("_block_timestamp_", value.clone());
+        }
         row.set("evt_tx_hash", evt.evt_tx_hash);
         row.set("evt_index", evt.evt_index as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("evt_block_time", value); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("evt_block_time", value);
+        }
         row.set("evt_block_number", evt.evt_block_number as i64);
         row.set("key_id", bytes_to_hex_prefixed(&evt.key_id));
         row.set("token_layer_id", bytes_to_hex_prefixed(&evt.key_id));
@@ -1270,10 +1684,14 @@ pub fn events_to_database_changes(
         let row_id = event_row_id(&evt.evt_tx_hash, evt.evt_index);
         let row = tables.create_row("raw_liquidity_mananager_upgraded", row_id);
         row.set("_block_number_", evt.evt_block_number as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("_block_timestamp_", value.clone()); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("_block_timestamp_", value.clone());
+        }
         row.set("evt_tx_hash", evt.evt_tx_hash);
         row.set("evt_index", evt.evt_index as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("evt_block_time", value); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("evt_block_time", value);
+        }
         row.set("evt_block_number", evt.evt_block_number as i64);
         row.set("implementation", bytes_to_hex_prefixed(&evt.implementation));
     }
@@ -1282,10 +1700,14 @@ pub fn events_to_database_changes(
         let row_id = event_row_id(&evt.evt_tx_hash, evt.evt_index);
         let row = tables.create_row("raw_fees_fee_distributed", row_id);
         row.set("_block_number_", evt.evt_block_number as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("_block_timestamp_", value.clone()); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("_block_timestamp_", value.clone());
+        }
         row.set("evt_tx_hash", evt.evt_tx_hash);
         row.set("evt_index", evt.evt_index as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("evt_block_time", value); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("evt_block_time", value);
+        }
         row.set("evt_block_number", evt.evt_block_number as i64);
         row.set("currency", bytes_to_hex_prefixed(&evt.currency));
         row.set("recipient", bytes_to_hex_prefixed(&evt.recipient));
@@ -1299,10 +1721,14 @@ pub fn events_to_database_changes(
         let row_id = event_row_id(&evt.evt_tx_hash, evt.evt_index);
         let row = tables.create_row("raw_fees_protocol_fee_distributed", row_id);
         row.set("_block_number_", evt.evt_block_number as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("_block_timestamp_", value.clone()); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("_block_timestamp_", value.clone());
+        }
         row.set("evt_tx_hash", evt.evt_tx_hash);
         row.set("evt_index", evt.evt_index as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("evt_block_time", value); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("evt_block_time", value);
+        }
         row.set("evt_block_number", evt.evt_block_number as i64);
         row.set("currency", bytes_to_hex_prefixed(&evt.currency));
         row.set("amount", evt.amount);
@@ -1313,10 +1739,14 @@ pub fn events_to_database_changes(
         let row_id = event_row_id(&evt.evt_tx_hash, evt.evt_index);
         let row = tables.create_row("raw_fees_protocol_fees_controller_updated", row_id);
         row.set("_block_number_", evt.evt_block_number as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("_block_timestamp_", value.clone()); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("_block_timestamp_", value.clone());
+        }
         row.set("evt_tx_hash", evt.evt_tx_hash);
         row.set("evt_index", evt.evt_index as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("evt_block_time", value); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("evt_block_time", value);
+        }
         row.set("evt_block_number", evt.evt_block_number as i64);
         row.set("old_controller", bytes_to_hex_prefixed(&evt.old_controller));
         row.set("new_controller", bytes_to_hex_prefixed(&evt.new_controller));
@@ -1326,10 +1756,14 @@ pub fn events_to_database_changes(
         let row_id = event_row_id(&evt.evt_tx_hash, evt.evt_index);
         let row = tables.create_row("raw_fees_protocol_withdrawn", row_id);
         row.set("_block_number_", evt.evt_block_number as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("_block_timestamp_", value.clone()); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("_block_timestamp_", value.clone());
+        }
         row.set("evt_tx_hash", evt.evt_tx_hash);
         row.set("evt_index", evt.evt_index as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("evt_block_time", value); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("evt_block_time", value);
+        }
         row.set("evt_block_number", evt.evt_block_number as i64);
         row.set("currency", bytes_to_hex_prefixed(&evt.currency));
         row.set("to", bytes_to_hex_prefixed(&evt.to));
@@ -1340,10 +1774,14 @@ pub fn events_to_database_changes(
         let row_id = event_row_id(&evt.evt_tx_hash, evt.evt_index);
         let row = tables.create_row("raw_fees_withdrawn", row_id);
         row.set("_block_number_", evt.evt_block_number as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("_block_timestamp_", value.clone()); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("_block_timestamp_", value.clone());
+        }
         row.set("evt_tx_hash", evt.evt_tx_hash);
         row.set("evt_index", evt.evt_index as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("evt_block_time", value); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("evt_block_time", value);
+        }
         row.set("evt_block_number", evt.evt_block_number as i64);
         row.set("currency", bytes_to_hex_prefixed(&evt.currency));
         row.set("recipient", bytes_to_hex_prefixed(&evt.recipient));
@@ -1355,10 +1793,14 @@ pub fn events_to_database_changes(
         let row_id = event_row_id(&evt.evt_tx_hash, evt.evt_index);
         let row = tables.create_row("raw_roles_approval", row_id);
         row.set("_block_number_", evt.evt_block_number as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("_block_timestamp_", value.clone()); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("_block_timestamp_", value.clone());
+        }
         row.set("evt_tx_hash", evt.evt_tx_hash);
         row.set("evt_index", evt.evt_index as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("evt_block_time", value); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("evt_block_time", value);
+        }
         row.set("evt_block_number", evt.evt_block_number as i64);
         row.set("owner", bytes_to_hex_prefixed(&evt.owner));
         row.set("spender", bytes_to_hex_prefixed(&evt.spender));
@@ -1370,10 +1812,14 @@ pub fn events_to_database_changes(
         let row_id = event_row_id(&evt.evt_tx_hash, evt.evt_index);
         let row = tables.create_row("raw_roles_ban_removed", row_id);
         row.set("_block_number_", evt.evt_block_number as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("_block_timestamp_", value.clone()); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("_block_timestamp_", value.clone());
+        }
         row.set("evt_tx_hash", evt.evt_tx_hash);
         row.set("evt_index", evt.evt_index as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("evt_block_time", value); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("evt_block_time", value);
+        }
         row.set("evt_block_number", evt.evt_block_number as i64);
         row.set("account", bytes_to_hex_prefixed(&evt.account));
         row.set("sender", bytes_to_hex_prefixed(&evt.sender));
@@ -1384,10 +1830,14 @@ pub fn events_to_database_changes(
         let row_id = event_row_id(&evt.evt_tx_hash, evt.evt_index);
         let row = tables.create_row("raw_roles_manager_changed", row_id);
         row.set("_block_number_", evt.evt_block_number as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("_block_timestamp_", value.clone()); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("_block_timestamp_", value.clone());
+        }
         row.set("evt_tx_hash", evt.evt_tx_hash);
         row.set("evt_index", evt.evt_index as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("evt_block_time", value); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("evt_block_time", value);
+        }
         row.set("evt_block_number", evt.evt_block_number as i64);
         row.set("new_manager", bytes_to_hex_prefixed(&evt.new_manager));
     }
@@ -1396,10 +1846,14 @@ pub fn events_to_database_changes(
         let row_id = event_row_id(&evt.evt_tx_hash, evt.evt_index);
         let row = tables.create_row("raw_roles_ownership_transferred", row_id);
         row.set("_block_number_", evt.evt_block_number as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("_block_timestamp_", value.clone()); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("_block_timestamp_", value.clone());
+        }
         row.set("evt_tx_hash", evt.evt_tx_hash);
         row.set("evt_index", evt.evt_index as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("evt_block_time", value); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("evt_block_time", value);
+        }
         row.set("evt_block_number", evt.evt_block_number as i64);
         row.set("user", bytes_to_hex_prefixed(&evt.user));
         row.set("new_owner", bytes_to_hex_prefixed(&evt.new_owner));
@@ -1409,10 +1863,14 @@ pub fn events_to_database_changes(
         let row_id = event_row_id(&evt.evt_tx_hash, evt.evt_index);
         let row = tables.create_row("raw_roles_role_added", row_id);
         row.set("_block_number_", evt.evt_block_number as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("_block_timestamp_", value.clone()); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("_block_timestamp_", value.clone());
+        }
         row.set("evt_tx_hash", evt.evt_tx_hash);
         row.set("evt_index", evt.evt_index as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("evt_block_time", value); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("evt_block_time", value);
+        }
         row.set("evt_block_number", evt.evt_block_number as i64);
         row.set("account", bytes_to_hex_prefixed(&evt.account));
         row.set("role_id", evt.role_id);
@@ -1423,10 +1881,14 @@ pub fn events_to_database_changes(
         let row_id = event_row_id(&evt.evt_tx_hash, evt.evt_index);
         let row = tables.create_row("raw_roles_role_created", row_id);
         row.set("_block_number_", evt.evt_block_number as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("_block_timestamp_", value.clone()); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("_block_timestamp_", value.clone());
+        }
         row.set("evt_tx_hash", evt.evt_tx_hash);
         row.set("evt_index", evt.evt_index as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("evt_block_time", value); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("evt_block_time", value);
+        }
         row.set("evt_block_number", evt.evt_block_number as i64);
         row.set("id", evt.id);
         row.set("name", evt.name);
@@ -1436,10 +1898,14 @@ pub fn events_to_database_changes(
         let row_id = event_row_id(&evt.evt_tx_hash, evt.evt_index);
         let row = tables.create_row("raw_roles_role_granted", row_id);
         row.set("_block_number_", evt.evt_block_number as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("_block_timestamp_", value.clone()); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("_block_timestamp_", value.clone());
+        }
         row.set("evt_tx_hash", evt.evt_tx_hash);
         row.set("evt_index", evt.evt_index as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("evt_block_time", value); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("evt_block_time", value);
+        }
         row.set("evt_block_number", evt.evt_block_number as i64);
         row.set("id", evt.id);
         row.set("account", bytes_to_hex_prefixed(&evt.account));
@@ -1452,10 +1918,14 @@ pub fn events_to_database_changes(
         let row_id = event_row_id(&evt.evt_tx_hash, evt.evt_index);
         let row = tables.create_row("raw_roles_role_order_updated", row_id);
         row.set("_block_number_", evt.evt_block_number as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("_block_timestamp_", value.clone()); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("_block_timestamp_", value.clone());
+        }
         row.set("evt_tx_hash", evt.evt_tx_hash);
         row.set("evt_index", evt.evt_index as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("evt_block_time", value); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("evt_block_time", value);
+        }
         row.set("evt_block_number", evt.evt_block_number as i64);
         row.set("account", bytes_to_hex_prefixed(&evt.account));
         row.set("role_id", evt.role_id);
@@ -1466,10 +1936,14 @@ pub fn events_to_database_changes(
         let row_id = event_row_id(&evt.evt_tx_hash, evt.evt_index);
         let row = tables.create_row("raw_roles_role_removed", row_id);
         row.set("_block_number_", evt.evt_block_number as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("_block_timestamp_", value.clone()); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("_block_timestamp_", value.clone());
+        }
         row.set("evt_tx_hash", evt.evt_tx_hash);
         row.set("evt_index", evt.evt_index as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("evt_block_time", value); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("evt_block_time", value);
+        }
         row.set("evt_block_number", evt.evt_block_number as i64);
         row.set("account", bytes_to_hex_prefixed(&evt.account));
         row.set("role_id", evt.role_id);
@@ -1479,10 +1953,14 @@ pub fn events_to_database_changes(
         let row_id = event_row_id(&evt.evt_tx_hash, evt.evt_index);
         let row = tables.create_row("raw_roles_role_renounced", row_id);
         row.set("_block_number_", evt.evt_block_number as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("_block_timestamp_", value.clone()); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("_block_timestamp_", value.clone());
+        }
         row.set("evt_tx_hash", evt.evt_tx_hash);
         row.set("evt_index", evt.evt_index as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("evt_block_time", value); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("evt_block_time", value);
+        }
         row.set("evt_block_number", evt.evt_block_number as i64);
         row.set("account", bytes_to_hex_prefixed(&evt.account));
         row.set("sender", bytes_to_hex_prefixed(&evt.sender));
@@ -1493,10 +1971,14 @@ pub fn events_to_database_changes(
         let row_id = event_row_id(&evt.evt_tx_hash, evt.evt_index);
         let row = tables.create_row("raw_roles_role_revoked", row_id);
         row.set("_block_number_", evt.evt_block_number as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("_block_timestamp_", value.clone()); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("_block_timestamp_", value.clone());
+        }
         row.set("evt_tx_hash", evt.evt_tx_hash);
         row.set("evt_index", evt.evt_index as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("evt_block_time", value); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("evt_block_time", value);
+        }
         row.set("evt_block_number", evt.evt_block_number as i64);
         row.set("id", evt.id);
         row.set("account", bytes_to_hex_prefixed(&evt.account));
@@ -1509,10 +1991,14 @@ pub fn events_to_database_changes(
         let row_id = event_row_id(&evt.evt_tx_hash, evt.evt_index);
         let row = tables.create_row("raw_roles_transfer", row_id);
         row.set("_block_number_", evt.evt_block_number as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("_block_timestamp_", value.clone()); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("_block_timestamp_", value.clone());
+        }
         row.set("evt_tx_hash", evt.evt_tx_hash);
         row.set("evt_index", evt.evt_index as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("evt_block_time", value); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("evt_block_time", value);
+        }
         row.set("evt_block_number", evt.evt_block_number as i64);
         row.set("caller", bytes_to_hex_prefixed(&evt.caller));
         row.set("from", bytes_to_hex_prefixed(&evt.from));
@@ -1525,10 +2011,14 @@ pub fn events_to_database_changes(
         let row_id = event_row_id(&evt.evt_tx_hash, evt.evt_index);
         let row = tables.create_row("raw_roles_user_kicked", row_id);
         row.set("_block_number_", evt.evt_block_number as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("_block_timestamp_", value.clone()); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("_block_timestamp_", value.clone());
+        }
         row.set("evt_tx_hash", evt.evt_tx_hash);
         row.set("evt_index", evt.evt_index as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("evt_block_time", value); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("evt_block_time", value);
+        }
         row.set("evt_block_number", evt.evt_block_number as i64);
         row.set("account", bytes_to_hex_prefixed(&evt.account));
         row.set("sender", bytes_to_hex_prefixed(&evt.sender));
@@ -1540,10 +2030,14 @@ pub fn events_to_database_changes(
         let row_id = event_row_id(&evt.evt_tx_hash, evt.evt_index);
         let row = tables.create_row("raw_token_coin_approval", row_id);
         row.set("_block_number_", evt.evt_block_number as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("_block_timestamp_", value.clone()); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("_block_timestamp_", value.clone());
+        }
         row.set("evt_tx_hash", evt.evt_tx_hash);
         row.set("evt_index", evt.evt_index as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("evt_block_time", value); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("evt_block_time", value);
+        }
         row.set("evt_block_number", evt.evt_block_number as i64);
         row.set("token_address", evt.token_address);
         row.set("owner", bytes_to_hex_prefixed(&evt.owner));
@@ -1556,10 +2050,14 @@ pub fn events_to_database_changes(
         let row_id = event_row_id(&evt.evt_tx_hash, evt.evt_index);
         let row = tables.create_row("raw_token_coin_enforced_option_set", row_id);
         row.set("_block_number_", evt.evt_block_number as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("_block_timestamp_", value.clone()); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("_block_timestamp_", value.clone());
+        }
         row.set("evt_tx_hash", evt.evt_tx_hash);
         row.set("evt_index", evt.evt_index as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("evt_block_time", value); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("evt_block_time", value);
+        }
         row.set("evt_block_number", evt.evt_block_number as i64);
         row.set("token_address", evt.token_address);
         row.set("token_layer_id", evt.token_layer_id);
@@ -1569,10 +2067,14 @@ pub fn events_to_database_changes(
         let row_id = event_row_id(&evt.evt_tx_hash, evt.evt_index);
         let row = tables.create_row("raw_token_coin_initialized", row_id);
         row.set("_block_number_", evt.evt_block_number as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("_block_timestamp_", value.clone()); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("_block_timestamp_", value.clone());
+        }
         row.set("evt_tx_hash", evt.evt_tx_hash);
         row.set("evt_index", evt.evt_index as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("evt_block_time", value); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("evt_block_time", value);
+        }
         row.set("evt_block_number", evt.evt_block_number as i64);
         row.set("token_address", evt.token_address);
         row.set("version", evt.version as i64);
@@ -1583,10 +2085,14 @@ pub fn events_to_database_changes(
         let row_id = event_row_id(&evt.evt_tx_hash, evt.evt_index);
         let row = tables.create_row("raw_token_coin_msg_inspector_set", row_id);
         row.set("_block_number_", evt.evt_block_number as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("_block_timestamp_", value.clone()); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("_block_timestamp_", value.clone());
+        }
         row.set("evt_tx_hash", evt.evt_tx_hash);
         row.set("evt_index", evt.evt_index as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("evt_block_time", value); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("evt_block_time", value);
+        }
         row.set("evt_block_number", evt.evt_block_number as i64);
         row.set("token_address", evt.token_address);
         row.set("inspector", bytes_to_hex_prefixed(&evt.inspector));
@@ -1597,10 +2103,14 @@ pub fn events_to_database_changes(
         let row_id = event_row_id(&evt.evt_tx_hash, evt.evt_index);
         let row = tables.create_row("raw_token_coin_oft_received", row_id);
         row.set("_block_number_", evt.evt_block_number as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("_block_timestamp_", value.clone()); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("_block_timestamp_", value.clone());
+        }
         row.set("evt_tx_hash", evt.evt_tx_hash);
         row.set("evt_index", evt.evt_index as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("evt_block_time", value); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("evt_block_time", value);
+        }
         row.set("evt_block_number", evt.evt_block_number as i64);
         row.set("token_address", evt.token_address);
         row.set("guid", bytes_to_hex_prefixed(&evt.guid));
@@ -1614,10 +2124,14 @@ pub fn events_to_database_changes(
         let row_id = event_row_id(&evt.evt_tx_hash, evt.evt_index);
         let row = tables.create_row("raw_token_coin_oft_sent", row_id);
         row.set("_block_number_", evt.evt_block_number as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("_block_timestamp_", value.clone()); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("_block_timestamp_", value.clone());
+        }
         row.set("evt_tx_hash", evt.evt_tx_hash);
         row.set("evt_index", evt.evt_index as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("evt_block_time", value); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("evt_block_time", value);
+        }
         row.set("evt_block_number", evt.evt_block_number as i64);
         row.set("token_address", evt.token_address);
         row.set("guid", bytes_to_hex_prefixed(&evt.guid));
@@ -1632,10 +2146,14 @@ pub fn events_to_database_changes(
         let row_id = event_row_id(&evt.evt_tx_hash, evt.evt_index);
         let row = tables.create_row("raw_token_coin_ownership_transferred", row_id);
         row.set("_block_number_", evt.evt_block_number as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("_block_timestamp_", value.clone()); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("_block_timestamp_", value.clone());
+        }
         row.set("evt_tx_hash", evt.evt_tx_hash);
         row.set("evt_index", evt.evt_index as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("evt_block_time", value); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("evt_block_time", value);
+        }
         row.set("evt_block_number", evt.evt_block_number as i64);
         row.set("token_address", evt.token_address);
         row.set("previous_owner", bytes_to_hex_prefixed(&evt.previous_owner));
@@ -1647,10 +2165,14 @@ pub fn events_to_database_changes(
         let row_id = event_row_id(&evt.evt_tx_hash, evt.evt_index);
         let row = tables.create_row("raw_token_coin_peer_set", row_id);
         row.set("_block_number_", evt.evt_block_number as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("_block_timestamp_", value.clone()); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("_block_timestamp_", value.clone());
+        }
         row.set("evt_tx_hash", evt.evt_tx_hash);
         row.set("evt_index", evt.evt_index as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("evt_block_time", value); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("evt_block_time", value);
+        }
         row.set("evt_block_number", evt.evt_block_number as i64);
         row.set("token_address", evt.token_address);
         row.set("eid", evt.eid as i64);
@@ -1662,13 +2184,20 @@ pub fn events_to_database_changes(
         let row_id = event_row_id(&evt.evt_tx_hash, evt.evt_index);
         let row = tables.create_row("raw_token_coin_pre_crime_set", row_id);
         row.set("_block_number_", evt.evt_block_number as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("_block_timestamp_", value.clone()); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("_block_timestamp_", value.clone());
+        }
         row.set("evt_tx_hash", evt.evt_tx_hash);
         row.set("evt_index", evt.evt_index as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("evt_block_time", value); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("evt_block_time", value);
+        }
         row.set("evt_block_number", evt.evt_block_number as i64);
         row.set("token_address", evt.token_address);
-        row.set("pre_crime_address", bytes_to_hex_prefixed(&evt.pre_crime_address));
+        row.set(
+            "pre_crime_address",
+            bytes_to_hex_prefixed(&evt.pre_crime_address),
+        );
         row.set("token_layer_id", evt.token_layer_id);
     }
 
@@ -1676,10 +2205,14 @@ pub fn events_to_database_changes(
         let row_id = event_row_id(&evt.evt_tx_hash, evt.evt_index);
         let row = tables.create_row("raw_token_coin_transfer", row_id);
         row.set("_block_number_", evt.evt_block_number as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("_block_timestamp_", value.clone()); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("_block_timestamp_", value.clone());
+        }
         row.set("evt_tx_hash", evt.evt_tx_hash);
         row.set("evt_index", evt.evt_index as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("evt_block_time", value); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("evt_block_time", value);
+        }
         row.set("evt_block_number", evt.evt_block_number as i64);
         row.set("token_address", evt.token_address);
         row.set("from", bytes_to_hex_prefixed(&evt.from));
@@ -1692,10 +2225,14 @@ pub fn events_to_database_changes(
         let row_id = event_row_id(&evt.evt_tx_hash, evt.evt_index);
         let row = tables.create_row("raw_uniswap_v3_swap", row_id);
         row.set("_block_number_", evt.evt_block_number as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("_block_timestamp_", value.clone()); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("_block_timestamp_", value.clone());
+        }
         row.set("evt_tx_hash", evt.evt_tx_hash);
         row.set("evt_index", evt.evt_index as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("evt_block_time", value); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("evt_block_time", value);
+        }
         row.set("evt_block_number", evt.evt_block_number as i64);
         row.set("pool", evt.pool);
         row.set("sender", evt.sender);
@@ -1707,16 +2244,26 @@ pub fn events_to_database_changes(
         row.set("tick", evt.tick);
         row.set("token_address", evt.token_address);
         row.set("token_layer_id", evt.token_layer_id);
+        if !evt.protocol_fees_token0.is_empty() {
+            row.set("protocol_fees_token0", evt.protocol_fees_token0);
+        }
+        if !evt.protocol_fees_token1.is_empty() {
+            row.set("protocol_fees_token1", evt.protocol_fees_token1);
+        }
     }
 
     for evt in events.uniswap_v3_pool_createds.into_iter() {
         let row_id = event_row_id(&evt.evt_tx_hash, evt.evt_index);
         let row = tables.create_row("raw_uniswap_v3_pool_created", row_id);
         row.set("_block_number_", evt.evt_block_number as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("_block_timestamp_", value.clone()); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("_block_timestamp_", value.clone());
+        }
         row.set("evt_tx_hash", evt.evt_tx_hash);
         row.set("evt_index", evt.evt_index as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("evt_block_time", value); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("evt_block_time", value);
+        }
         row.set("evt_block_number", evt.evt_block_number as i64);
         row.set("pool", evt.pool);
         row.set("token0", evt.token0);
@@ -1731,10 +2278,14 @@ pub fn events_to_database_changes(
         let row_id = event_row_id(&evt.evt_tx_hash, evt.evt_index);
         let row = tables.create_row("raw_uniswap_v3_mint", row_id);
         row.set("_block_number_", evt.evt_block_number as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("_block_timestamp_", value.clone()); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("_block_timestamp_", value.clone());
+        }
         row.set("evt_tx_hash", evt.evt_tx_hash);
         row.set("evt_index", evt.evt_index as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("evt_block_time", value); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("evt_block_time", value);
+        }
         row.set("evt_block_number", evt.evt_block_number as i64);
         row.set("pool", evt.pool);
         row.set("owner", evt.owner);
@@ -1752,10 +2303,14 @@ pub fn events_to_database_changes(
         let row_id = event_row_id(&evt.evt_tx_hash, evt.evt_index);
         let row = tables.create_row("raw_uniswap_v3_burn", row_id);
         row.set("_block_number_", evt.evt_block_number as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("_block_timestamp_", value.clone()); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("_block_timestamp_", value.clone());
+        }
         row.set("evt_tx_hash", evt.evt_tx_hash);
         row.set("evt_index", evt.evt_index as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("evt_block_time", value); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("evt_block_time", value);
+        }
         row.set("evt_block_number", evt.evt_block_number as i64);
         row.set("pool", evt.pool);
         row.set("owner", evt.owner);
@@ -1772,12 +2327,19 @@ pub fn events_to_database_changes(
         let token_address = evt.token_address.clone();
         let wallet = evt.wallet.clone();
         let balance = evt.balance.clone();
-        let row_id = format!("{}:{}:{}:{}", token_address, wallet, evt.evt_block_number, idx);
+        let row_id = format!(
+            "{}:{}:{}:{}",
+            token_address, wallet, evt.evt_block_number, idx
+        );
         let row = tables.create_row("agg_wallet_token_balance", row_id);
         row.set("_block_number_", evt.evt_block_number as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("_block_timestamp_", value.clone()); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("_block_timestamp_", value.clone());
+        }
         row.set("evt_block_number", evt.evt_block_number as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("evt_block_time", value); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("evt_block_time", value);
+        }
         row.set("token_address", evt.token_address);
         row.set("token_layer_id", evt.token_layer_id.clone());
         row.set("wallet", evt.wallet);
@@ -1785,9 +2347,13 @@ pub fn events_to_database_changes(
         let current_id = format!("{}:{}", token_address, wallet);
         let current = tables.upsert_row("cur_wallet_token_balance", current_id);
         current.set("_block_number_", evt.evt_block_number as i64);
-        if let Some(value) = evt.evt_block_time.clone() { current.set("_block_timestamp_", value.clone()); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            current.set("_block_timestamp_", value.clone());
+        }
         current.set("evt_block_number", evt.evt_block_number as i64);
-        if let Some(value) = evt.evt_block_time.clone() { current.set("evt_block_time", value); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            current.set("evt_block_time", value);
+        }
         current.set("token_address", token_address);
         current.set("token_layer_id", evt.token_layer_id);
         current.set("wallet", wallet);
@@ -1798,9 +2364,13 @@ pub fn events_to_database_changes(
         let row_id = format!("{}:{}", evt.account, evt.currency);
         let row = tables.upsert_row("cur_user_fee_balance", row_id);
         row.set("_block_number_", evt.evt_block_number as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("_block_timestamp_", value.clone()); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("_block_timestamp_", value.clone());
+        }
         row.set("evt_block_number", evt.evt_block_number as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("evt_block_time", value); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("evt_block_time", value);
+        }
         row.set("account", evt.account);
         row.set("currency", evt.currency);
         row.set("balance", evt.balance);
@@ -1810,9 +2380,13 @@ pub fn events_to_database_changes(
         let row_id = evt.currency.clone();
         let row = tables.upsert_row("cur_protocol_fee_balance", row_id);
         row.set("_block_number_", evt.evt_block_number as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("_block_timestamp_", value.clone()); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("_block_timestamp_", value.clone());
+        }
         row.set("evt_block_number", evt.evt_block_number as i64);
-        if let Some(value) = evt.evt_block_time.clone() { row.set("evt_block_time", value); }
+        if let Some(value) = evt.evt_block_time.clone() {
+            row.set("evt_block_time", value);
+        }
         row.set("currency", evt.currency);
         row.set("balance", evt.balance);
     }
@@ -1828,14 +2402,20 @@ pub fn events_to_database_changes(
         let price_usd = evt.price_usd.clone();
         let row = tables.create_row("agg_token_trade", row_id);
         row.set("_block_number_", evt_block_number);
-        if let Some(value) = evt_block_time.clone() { row.set("_block_timestamp_", value.clone()); }
+        if let Some(value) = evt_block_time.clone() {
+            row.set("_block_timestamp_", value.clone());
+        }
         row.set("evt_tx_hash", evt_tx_hash.clone());
         row.set("evt_index", evt_index);
-        if let Some(value) = evt_block_time.clone() { row.set("evt_block_time", value); }
+        if let Some(value) = evt_block_time.clone() {
+            row.set("evt_block_time", value);
+        }
         row.set("evt_block_number", evt_block_number);
         row.set("venue", evt.venue);
         row.set("trade_type", evt.trade_type);
         row.set("wallet", evt.wallet);
+        row.set("trader", evt.trader);
+        row.set("receiver", evt.receiver);
         row.set("token_address", token_address.clone());
         row.set("pool", evt.pool);
         if !evt.token_amount.is_empty() {
@@ -1866,10 +2446,14 @@ pub fn events_to_database_changes(
             let price_row_id = format!("{}:{}:price", evt_tx_hash, evt_index);
             let price_row = tables.create_row("agg_token_price_usd", price_row_id);
             price_row.set("_block_number_", evt_block_number);
-            if let Some(value) = evt_block_time.clone() { price_row.set("_block_timestamp_", value.clone()); }
+            if let Some(value) = evt_block_time.clone() {
+                price_row.set("_block_timestamp_", value.clone());
+            }
             price_row.set("evt_tx_hash", evt_tx_hash.clone());
             price_row.set("evt_index", evt_index);
-            if let Some(value) = evt_block_time.clone() { price_row.set("evt_block_time", value); }
+            if let Some(value) = evt_block_time.clone() {
+                price_row.set("evt_block_time", value);
+            }
             price_row.set("evt_block_number", evt_block_number);
             price_row.set("token_layer_id", token_layer_id.clone());
             price_row.set("token_address", token_address.clone());
@@ -1882,10 +2466,14 @@ pub fn events_to_database_changes(
             };
             let current = tables.upsert_row("cur_token_price_usd", current_id);
             current.set("_block_number_", evt_block_number);
-            if let Some(value) = evt_block_time.clone() { current.set("_block_timestamp_", value.clone()); }
+            if let Some(value) = evt_block_time.clone() {
+                current.set("_block_timestamp_", value.clone());
+            }
             current.set("evt_tx_hash", evt_tx_hash);
             current.set("evt_index", evt_index);
-            if let Some(value) = evt_block_time.clone() { current.set("evt_block_time", value); }
+            if let Some(value) = evt_block_time.clone() {
+                current.set("evt_block_time", value);
+            }
             current.set("evt_block_number", evt_block_number);
             current.set("token_layer_id", token_layer_id);
             current.set("token_address", token_address);
@@ -1919,5 +2507,25 @@ pub fn events_to_database_changes(
         }
     }
 
-    tables.to_database_changes()
+    for stats in cur_token_stats_rows.into_iter() {
+        let row = tables.upsert_row("cur_token_stats", stats.row_id);
+        row.set("_block_number_", stats.block_number);
+        if let Some(value) = stats.block_time.clone() {
+            row.set("_block_timestamp_", value);
+        }
+        row.set("token_layer_id", stats.token_layer_id);
+        row.set("token_address", stats.token_address);
+        row.set("total_volume_token", stats.total_volume_token);
+        row.set("total_volume_token_raw", stats.total_volume_token_raw);
+        row.set("total_volume_usd", stats.total_volume_usd);
+        row.set("total_volume_usd_raw", stats.total_volume_usd_raw);
+        row.set("evt_block_number", stats.evt_block_number);
+        if let Some(value) = stats.evt_block_time {
+            row.set("evt_block_time", value);
+        }
+    }
+
+    let mut changes = tables.to_database_changes();
+    normalize_transaction_hash_fields(&mut changes);
+    changes
 }

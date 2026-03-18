@@ -32,7 +32,6 @@ MANIFEST="${MANIFEST:-./substreams.yaml}"
 START_BLOCK="${START_BLOCK:-}"
 AUTH_ARGS=()
 PARAM_ARGS=()
-RANGE_ARG=()
 
 if [[ -n "${SUBSTREAMS_API_KEY:-}" ]]; then
   AUTH_ARGS=(-H "x-api-key: ${SUBSTREAMS_API_KEY}")
@@ -55,7 +54,7 @@ FLAG_ARGS=(
   --bytes-encoding 0xhex
 )
 HANDLE_REORGS="${HANDLE_REORGS:-1}"
-UNDO_BUFFER_SIZE="${UNDO_BUFFER_SIZE:-200}"
+UNDO_BUFFER_SIZE="${UNDO_BUFFER_SIZE:-1}"
 
 if [[ "$HANDLE_REORGS" == "1" ]]; then
   FLAG_ARGS+=(--undo-buffer-size "$UNDO_BUFFER_SIZE")
@@ -64,7 +63,7 @@ else
 fi
 
 if [[ -n "$START_BLOCK" ]]; then
-  RANGE_ARG=("${START_BLOCK}:")
+  FLAG_ARGS+=(--start-block "$START_BLOCK")
 fi
 
-substreams-sink-sql run "${ARGS[@]}" "${RANGE_ARG[@]}" "${FLAG_ARGS[@]}" "${PARAM_ARGS[@]}" "${AUTH_ARGS[@]}"
+substreams-sink-sql run "${ARGS[@]}" "${FLAG_ARGS[@]}" "${PARAM_ARGS[@]}" "${AUTH_ARGS[@]}"

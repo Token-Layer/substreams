@@ -667,12 +667,11 @@ message Launchpad_Graduation {
     uint32 evt_index = 2;
     google.protobuf.Timestamp evt_block_time = 3;
     uint64 evt_block_number = 4;
-    bytes token_id = 5;
-    string token_address = 6;
-    bool is_external = 7;
-    string final_supply = 8;
-    string final_reserves = 9;
-    string token_layer_id = 10;
+    string token_address = 5;
+    bool is_external = 6;
+    string final_supply = 7;
+    string final_reserves = 8;
+    string token_layer_id = 9;
 }
   
 message Ip_Approval {
@@ -1144,6 +1143,8 @@ message UniswapV3_Swap {
     string tick = 12;
     string token_address = 13;
     string token_layer_id = 14;
+    string protocol_fees_token0 = 15;
+    string protocol_fees_token1 = 16;
 }
 
 message UniswapV3_PoolCreated {
@@ -1238,6 +1239,8 @@ message AggTokenTrade {
     uint64 quote_decimals = 18;
     string token_decimals_source = 19;
     string quote_decimals_source = 20;
+    string trader = 21;
+    string receiver = 22;
 }
     
 message TokenCoin_ApproveCall {

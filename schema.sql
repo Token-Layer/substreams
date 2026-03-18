@@ -907,7 +907,6 @@ CREATE TABLE IF NOT EXISTS "raw_launchpad_graduation" (
   "evt_index" NUMERIC,
   "evt_block_time" TIMESTAMP,
   "evt_block_number" NUMERIC,
-  "token_id" TEXT,
   "token_layer_id" TEXT,
   "token_address" TEXT,
   "is_external" BOOLEAN,
@@ -916,7 +915,6 @@ CREATE TABLE IF NOT EXISTS "raw_launchpad_graduation" (
 );
 CREATE INDEX IF NOT EXISTS "idx_launchpad_graduation_evt_block_number" ON "raw_launchpad_graduation" ("evt_block_number");
 CREATE INDEX IF NOT EXISTS "idx_launchpad_graduation_evt_tx_hash" ON "raw_launchpad_graduation" ("evt_tx_hash");
-CREATE INDEX IF NOT EXISTS "idx_launchpad_graduation_token_id" ON "raw_launchpad_graduation" ("token_id");
 CREATE INDEX IF NOT EXISTS "idx_launchpad_graduation_token_layer_id" ON "raw_launchpad_graduation" ("token_layer_id");
 CREATE INDEX IF NOT EXISTS "idx_launchpad_graduation_token_address" ON "raw_launchpad_graduation" ("token_address");
 
@@ -1725,7 +1723,9 @@ CREATE TABLE IF NOT EXISTS "raw_uniswap_v3_swap" (
   "amount1" NUMERIC,
   "sqrt_price_x96" NUMERIC,
   "liquidity" NUMERIC,
-  "tick" NUMERIC
+  "tick" NUMERIC,
+  "protocol_fees_token0" NUMERIC,
+  "protocol_fees_token1" NUMERIC
 );
 CREATE INDEX IF NOT EXISTS "idx_uniswapv3_swap_evt_block_number" ON "raw_uniswap_v3_swap" ("evt_block_number");
 CREATE INDEX IF NOT EXISTS "idx_uniswapv3_swap_evt_tx_hash" ON "raw_uniswap_v3_swap" ("evt_tx_hash");
@@ -1875,6 +1875,8 @@ CREATE TABLE IF NOT EXISTS "agg_token_trade" (
   "venue" TEXT,
   "trade_type" TEXT,
   "wallet" TEXT,
+  "trader" TEXT,
+  "receiver" TEXT,
   "token_address" TEXT,
   "pool" TEXT,
   "token_amount" NUMERIC,
@@ -1892,6 +1894,8 @@ CREATE TABLE IF NOT EXISTS "agg_token_trade" (
 CREATE INDEX IF NOT EXISTS "idx_agg_token_trade_evt_block_number" ON "agg_token_trade" ("evt_block_number");
 CREATE INDEX IF NOT EXISTS "idx_agg_token_trade_evt_tx_hash" ON "agg_token_trade" ("evt_tx_hash");
 CREATE INDEX IF NOT EXISTS "idx_agg_token_trade_wallet" ON "agg_token_trade" ("wallet");
+CREATE INDEX IF NOT EXISTS "idx_agg_token_trade_trader" ON "agg_token_trade" ("trader");
+CREATE INDEX IF NOT EXISTS "idx_agg_token_trade_receiver" ON "agg_token_trade" ("receiver");
 CREATE INDEX IF NOT EXISTS "idx_agg_token_trade_token_address" ON "agg_token_trade" ("token_address");
 CREATE INDEX IF NOT EXISTS "idx_agg_token_trade_venue" ON "agg_token_trade" ("venue");
 CREATE INDEX IF NOT EXISTS "idx_agg_token_trade_token_layer_id" ON "agg_token_trade" ("token_layer_id");
@@ -1955,6 +1959,36 @@ CREATE TABLE IF NOT EXISTS "cur_token_price_usd" (
 );
 CREATE INDEX IF NOT EXISTS "idx_cur_token_price_usd_token_layer_id" ON "cur_token_price_usd" ("token_layer_id");
 CREATE INDEX IF NOT EXISTS "idx_cur_token_price_usd_token_address" ON "cur_token_price_usd" ("token_address");
+
+CREATE TABLE IF NOT EXISTS "cur_token_stats" (
+  "token_layer_id" TEXT PRIMARY KEY,
+  "_block_number_" NUMERIC,
+  "_block_timestamp_" TIMESTAMP,
+  "evt_block_time" TIMESTAMP,
+  "token_address" TEXT,
+  "price_usd" NUMERIC,
+  "price_change_1h_pct" NUMERIC,
+  "price_change_6h_pct" NUMERIC,
+  "price_change_12h_pct" NUMERIC,
+  "price_change_24h_pct" NUMERIC,
+  "price_change_1h_abs" NUMERIC,
+  "price_change_6h_abs" NUMERIC,
+  "price_change_12h_abs" NUMERIC,
+  "price_change_24h_abs" NUMERIC,
+  "volume_usd_1h" NUMERIC,
+  "volume_usd_6h" NUMERIC,
+  "volume_usd_12h" NUMERIC,
+  "volume_usd_24h" NUMERIC,
+  "total_volume_token" NUMERIC,
+  "total_volume_token_raw" NUMERIC,
+  "total_volume_usd" NUMERIC,
+  "total_volume_usd_raw" NUMERIC,
+  "holder_count" NUMERIC,
+  "evt_block_number" NUMERIC,
+  "updated_at" TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS "idx_cur_token_stats_token_address" ON "cur_token_stats" ("token_address");
+CREATE INDEX IF NOT EXISTS "idx_cur_token_stats_evt_block_number" ON "cur_token_stats" ("evt_block_number");
 
 CREATE TABLE IF NOT EXISTS "dim_token" (
   "token_layer_id" TEXT PRIMARY KEY,

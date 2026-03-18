@@ -4,12 +4,12 @@ mod db_changes;
 mod pb;
 use hex_literal::hex;
 use pb::contract::v1 as contract;
+use std::collections::{HashMap, HashSet};
 use substreams::prelude::*;
 use substreams::store;
 use substreams::Hex;
 use substreams_ethereum::pb::eth::v2 as eth;
 use substreams_ethereum::Event;
-use std::collections::{HashMap, HashSet};
 
 #[allow(unused_imports)] // Might not be needed depending on actual ABI, hence the allow
 use {num_traits::cast::ToPrimitive, std::str::FromStr, substreams::scalar::BigDecimal};
@@ -21,13 +21,17 @@ const OAPP_TRACKED_CONTRACT: [u8; 20] = hex!("f7d116f1a1ac7c34372e52cf5763c58dcf
 const MANAGER_TRACKED_CONTRACT: [u8; 20] = hex!("0000007e56e19a085a31f27aa61c8671c12d2bb7");
 const LAUNCHPAD_TRACKED_CONTRACT: [u8; 20] = hex!("00060eb62a2c042d00e29fddc092f9ed1f25def1");
 const IP_TRACKED_CONTRACT: [u8; 20] = hex!("00089428a12cd4a6064be0125ced1f6a1066deed");
-const LIQUIDITY_MANANAGER_TRACKED_CONTRACT: [u8; 20] = hex!("e60159a9831ed8c8a8832da1b9a10c03d737dcb2");
+const LIQUIDITY_MANANAGER_TRACKED_CONTRACT: [u8; 20] =
+    hex!("e60159a9831ed8c8a8832da1b9a10c03d737dcb2");
 const FEES_TRACKED_CONTRACT: [u8; 20] = hex!("feeeba1dcc3abbd045e8b824d9699e735de49fee");
 const ROLES_TRACKED_CONTRACT: [u8; 20] = hex!("ff582c406d037ac7aaddbb203d74bde112791d51");
 const ZERO_ADDRESS: [u8; 20] = [0u8; 20];
-const UNISWAP_V3_MINT_TOPIC: [u8; 32] = hex!("7a53080ba414158be7ec69b987b5fb7d07dee101fe85488f0853ae16239d0bde");
-const UNISWAP_V3_BURN_TOPIC: [u8; 32] = hex!("0c396cd989a39f4459b5fa1aed6a9a8dcdbc45908acfd67e028cd568da98982c");
-const LAUNCHPAD_GRADUATION_TOPIC: [u8; 32] = hex!("392671c0c142729d75db4636bb6c9c0686ed7b801f6a29231b35286367b434e4");
+const UNISWAP_V3_MINT_TOPIC: [u8; 32] =
+    hex!("7a53080ba414158be7ec69b987b5fb7d07dee101fe85488f0853ae16239d0bde");
+const UNISWAP_V3_BURN_TOPIC: [u8; 32] =
+    hex!("0c396cd989a39f4459b5fa1aed6a9a8dcdbc45908acfd67e028cd568da98982c");
+const LAUNCHPAD_GRADUATION_TOPIC: [u8; 32] =
+    hex!("392671c0c142729d75db4636bb6c9c0686ed7b801f6a29231b35286367b434e4");
 
 fn resolve_uniswap_factory_address(params: &str) -> String {
     for pair in params.split('&') {
@@ -44,7 +48,9 @@ fn resolve_uniswap_factory_address(params: &str) -> String {
         }
     }
 
-    panic!("missing required module param: uniswap_v3_factory (expected 0x-prefixed 20-byte address)")
+    panic!(
+        "missing required module param: uniswap_v3_factory (expected 0x-prefixed 20-byte address)"
+    )
 }
 
 fn resolve_oapp_address(params: &str) -> [u8; 20] {
@@ -100,118 +106,154 @@ fn resolve_u64_param(params: &str, key: &str, default: u64) -> u64 {
 }
 
 fn map_registry_events(blk: &eth::Block, events: &mut contract::Events) {
-    events.registry_adapter_deployeds.append(&mut blk
-        .receipts()
-        .flat_map(|view| {
-            view.receipt.logs.iter()
-                .filter(|log| log.address == REGISTRY_TRACKED_CONTRACT)
-                .filter_map(|log| {
-                    if let Some(event) = abi::registry_contract::events::AdapterDeployed::match_and_decode(log) {
-                        return Some(contract::RegistryAdapterDeployed {
-                            evt_tx_hash: Hex(&view.transaction.hash).to_string(),
-                            evt_index: log.block_index,
-                            evt_block_time: Some(blk.timestamp().to_owned()),
-                            evt_block_number: blk.number,
-                            adapter: event.adapter,
-                            adapter_type: event.adapter_type.to_u64(),
-                            external_token: event.external_token,
-                            wrapped_token: event.wrapped_token,
-                        });
-                    }
+    events.registry_adapter_deployeds.append(
+        &mut blk
+            .receipts()
+            .flat_map(|view| {
+                view.receipt
+                    .logs
+                    .iter()
+                    .filter(|log| log.address == REGISTRY_TRACKED_CONTRACT)
+                    .filter_map(|log| {
+                        if let Some(event) =
+                            abi::registry_contract::events::AdapterDeployed::match_and_decode(log)
+                        {
+                            return Some(contract::RegistryAdapterDeployed {
+                                evt_tx_hash: Hex(&view.transaction.hash).to_string(),
+                                evt_index: log.block_index,
+                                evt_block_time: Some(blk.timestamp().to_owned()),
+                                evt_block_number: blk.number,
+                                adapter: event.adapter,
+                                adapter_type: event.adapter_type.to_u64(),
+                                external_token: event.external_token,
+                                wrapped_token: event.wrapped_token,
+                            });
+                        }
 
-                    None
-                })
-        })
-        .collect());
-    events.registry_adapter_template_resets.append(&mut blk
-        .receipts()
-        .flat_map(|view| {
-            view.receipt.logs.iter()
-                .filter(|log| log.address == REGISTRY_TRACKED_CONTRACT)
-                .filter_map(|log| {
-                    if let Some(event) = abi::registry_contract::events::AdapterTemplateReset::match_and_decode(log) {
-                        return Some(contract::RegistryAdapterTemplateReset {
-                            evt_tx_hash: Hex(&view.transaction.hash).to_string(),
-                            evt_index: log.block_index,
-                            evt_block_time: Some(blk.timestamp().to_owned()),
-                            evt_block_number: blk.number,
-                            template_id: Vec::from(event.template_id),
-                        });
-                    }
+                        None
+                    })
+            })
+            .collect(),
+    );
+    events.registry_adapter_template_resets.append(
+        &mut blk
+            .receipts()
+            .flat_map(|view| {
+                view.receipt
+                    .logs
+                    .iter()
+                    .filter(|log| log.address == REGISTRY_TRACKED_CONTRACT)
+                    .filter_map(|log| {
+                        if let Some(event) =
+                            abi::registry_contract::events::AdapterTemplateReset::match_and_decode(
+                                log,
+                            )
+                        {
+                            return Some(contract::RegistryAdapterTemplateReset {
+                                evt_tx_hash: Hex(&view.transaction.hash).to_string(),
+                                evt_index: log.block_index,
+                                evt_block_time: Some(blk.timestamp().to_owned()),
+                                evt_block_number: blk.number,
+                                template_id: Vec::from(event.template_id),
+                            });
+                        }
 
-                    None
-                })
-        })
-        .collect());
-    events.registry_adapter_template_sets.append(&mut blk
-        .receipts()
-        .flat_map(|view| {
-            view.receipt.logs.iter()
-                .filter(|log| log.address == REGISTRY_TRACKED_CONTRACT)
-                .filter_map(|log| {
-                    if let Some(event) = abi::registry_contract::events::AdapterTemplateSet::match_and_decode(log) {
-                        return Some(contract::RegistryAdapterTemplateSet {
-                            evt_tx_hash: Hex(&view.transaction.hash).to_string(),
-                            evt_index: log.block_index,
-                            evt_block_time: Some(blk.timestamp().to_owned()),
-                            evt_block_number: blk.number,
-                            adapter_type: event.adapter_type.to_u64(),
-                            implementation_address: event.implementation_address,
-                            template_id: Vec::from(event.template_id),
-                        });
-                    }
+                        None
+                    })
+            })
+            .collect(),
+    );
+    events.registry_adapter_template_sets.append(
+        &mut blk
+            .receipts()
+            .flat_map(|view| {
+                view.receipt
+                    .logs
+                    .iter()
+                    .filter(|log| log.address == REGISTRY_TRACKED_CONTRACT)
+                    .filter_map(|log| {
+                        if let Some(event) =
+                            abi::registry_contract::events::AdapterTemplateSet::match_and_decode(
+                                log,
+                            )
+                        {
+                            return Some(contract::RegistryAdapterTemplateSet {
+                                evt_tx_hash: Hex(&view.transaction.hash).to_string(),
+                                evt_index: log.block_index,
+                                evt_block_time: Some(blk.timestamp().to_owned()),
+                                evt_block_number: blk.number,
+                                adapter_type: event.adapter_type.to_u64(),
+                                implementation_address: event.implementation_address,
+                                template_id: Vec::from(event.template_id),
+                            });
+                        }
 
-                    None
-                })
-        })
-        .collect());
-    events.registry_builder_fees_approveds.append(&mut blk
-        .receipts()
-        .flat_map(|view| {
-            view.receipt.logs.iter()
-                .filter(|log| log.address == REGISTRY_TRACKED_CONTRACT)
-                .filter_map(|log| {
-                    if let Some(event) = abi::registry_contract::events::BuilderFeesApproved::match_and_decode(log) {
-                        return Some(contract::RegistryBuilderFeesApproved {
-                            evt_tx_hash: Hex(&view.transaction.hash).to_string(),
-                            evt_index: log.block_index,
-                            evt_block_time: Some(blk.timestamp().to_owned()),
-                            evt_block_number: blk.number,
-                            builder: event.builder,
-                            user: event.user,
-                        });
-                    }
+                        None
+                    })
+            })
+            .collect(),
+    );
+    events.registry_builder_fees_approveds.append(
+        &mut blk
+            .receipts()
+            .flat_map(|view| {
+                view.receipt
+                    .logs
+                    .iter()
+                    .filter(|log| log.address == REGISTRY_TRACKED_CONTRACT)
+                    .filter_map(|log| {
+                        if let Some(event) =
+                            abi::registry_contract::events::BuilderFeesApproved::match_and_decode(
+                                log,
+                            )
+                        {
+                            return Some(contract::RegistryBuilderFeesApproved {
+                                evt_tx_hash: Hex(&view.transaction.hash).to_string(),
+                                evt_index: log.block_index,
+                                evt_block_time: Some(blk.timestamp().to_owned()),
+                                evt_block_number: blk.number,
+                                builder: event.builder,
+                                user: event.user,
+                            });
+                        }
 
-                    None
-                })
-        })
-        .collect());
-    events.registry_coin_createds.append(&mut blk
-        .receipts()
-        .flat_map(|view| {
-            view.receipt.logs.iter()
-                .filter(|log| log.address == REGISTRY_TRACKED_CONTRACT)
-                .filter_map(|log| {
-                    if let Some(event) = abi::registry_contract::events::CoinCreated::match_and_decode(log) {
-                        return Some(contract::RegistryCoinCreated {
-                            evt_tx_hash: Hex(&view.transaction.hash).to_string(),
-                            evt_index: log.block_index,
-                            evt_block_time: Some(blk.timestamp().to_owned()),
-                            evt_block_number: blk.number,
-                            coin_address: event.coin_address,
-                            decimals: event.decimals.to_u64(),
-                            hub_id: event.hub_id.to_string(),
-                            name: event.name,
-                            symbol: event.symbol,
-                            token_uri: event.token_uri,
-                            total_supply: event.total_supply.to_string(),
-                        });
-                    }
+                        None
+                    })
+            })
+            .collect(),
+    );
+    events.registry_coin_createds.append(
+        &mut blk
+            .receipts()
+            .flat_map(|view| {
+                view.receipt
+                    .logs
+                    .iter()
+                    .filter(|log| log.address == REGISTRY_TRACKED_CONTRACT)
+                    .filter_map(|log| {
+                        if let Some(event) =
+                            abi::registry_contract::events::CoinCreated::match_and_decode(log)
+                        {
+                            return Some(contract::RegistryCoinCreated {
+                                evt_tx_hash: Hex(&view.transaction.hash).to_string(),
+                                evt_index: log.block_index,
+                                evt_block_time: Some(blk.timestamp().to_owned()),
+                                evt_block_number: blk.number,
+                                coin_address: event.coin_address,
+                                decimals: event.decimals.to_u64(),
+                                hub_id: event.hub_id.to_string(),
+                                name: event.name,
+                                symbol: event.symbol,
+                                token_uri: event.token_uri,
+                                total_supply: event.total_supply.to_string(),
+                            });
+                        }
 
-                    None
-                })
-        })
-        .collect());
+                        None
+                    })
+            })
+            .collect(),
+    );
     events.registry_contract_address_overwrittens.append(&mut blk
         .receipts()
         .flat_map(|view| {
@@ -234,163 +276,211 @@ fn map_registry_events(blk: &eth::Block, events: &mut contract::Events) {
                 })
         })
         .collect());
-    events.registry_contract_deployeds.append(&mut blk
-        .receipts()
-        .flat_map(|view| {
-            view.receipt.logs.iter()
-                .filter(|log| log.address == REGISTRY_TRACKED_CONTRACT)
-                .filter_map(|log| {
-                    if let Some(event) = abi::registry_contract::events::ContractDeployed::match_and_decode(log) {
-                        return Some(contract::RegistryContractDeployed {
-                            evt_tx_hash: Hex(&view.transaction.hash).to_string(),
-                            evt_index: log.block_index,
-                            evt_block_time: Some(blk.timestamp().to_owned()),
-                            evt_block_number: blk.number,
-                            contract_address: event.contract_address,
-                            name: Vec::from(event.name),
-                            salt: Vec::from(event.salt),
-                        });
-                    }
+    events.registry_contract_deployeds.append(
+        &mut blk
+            .receipts()
+            .flat_map(|view| {
+                view.receipt
+                    .logs
+                    .iter()
+                    .filter(|log| log.address == REGISTRY_TRACKED_CONTRACT)
+                    .filter_map(|log| {
+                        if let Some(event) =
+                            abi::registry_contract::events::ContractDeployed::match_and_decode(log)
+                        {
+                            return Some(contract::RegistryContractDeployed {
+                                evt_tx_hash: Hex(&view.transaction.hash).to_string(),
+                                evt_index: log.block_index,
+                                evt_block_time: Some(blk.timestamp().to_owned()),
+                                evt_block_number: blk.number,
+                                contract_address: event.contract_address,
+                                name: Vec::from(event.name),
+                                salt: Vec::from(event.salt),
+                            });
+                        }
 
-                    None
-                })
-        })
-        .collect());
-    events.registry_external_token_createds.append(&mut blk
-        .receipts()
-        .flat_map(|view| {
-            view.receipt.logs.iter()
-                .filter(|log| log.address == REGISTRY_TRACKED_CONTRACT)
-                .filter_map(|log| {
-                    if let Some(event) = abi::registry_contract::events::ExternalTokenCreated::match_and_decode(log) {
-                        return Some(contract::RegistryExternalTokenCreated {
-                            evt_tx_hash: Hex(&view.transaction.hash).to_string(),
-                            evt_index: log.block_index,
-                            evt_block_time: Some(blk.timestamp().to_owned()),
-                            evt_block_number: blk.number,
-                            adapter: event.adapter,
-                            adapter_type: event.adapter_type.to_u64(),
-                            external_token: event.external_token,
-                            name: event.name,
-                            symbol: event.symbol,
-                            token_address: event.token_address,
-                            token_id: format!("0x{}", Hex(&event.token_id).to_string()),
-                        });
-                    }
+                        None
+                    })
+            })
+            .collect(),
+    );
+    events.registry_external_token_createds.append(
+        &mut blk
+            .receipts()
+            .flat_map(|view| {
+                view.receipt
+                    .logs
+                    .iter()
+                    .filter(|log| log.address == REGISTRY_TRACKED_CONTRACT)
+                    .filter_map(|log| {
+                        if let Some(event) =
+                            abi::registry_contract::events::ExternalTokenCreated::match_and_decode(
+                                log,
+                            )
+                        {
+                            return Some(contract::RegistryExternalTokenCreated {
+                                evt_tx_hash: Hex(&view.transaction.hash).to_string(),
+                                evt_index: log.block_index,
+                                evt_block_time: Some(blk.timestamp().to_owned()),
+                                evt_block_number: blk.number,
+                                adapter: event.adapter,
+                                adapter_type: event.adapter_type.to_u64(),
+                                external_token: event.external_token,
+                                name: event.name,
+                                symbol: event.symbol,
+                                token_address: event.token_address,
+                                token_id: format!("0x{}", Hex(&event.token_id).to_string()),
+                            });
+                        }
 
-                    None
-                })
-        })
-        .collect());
-    events.registry_hub_createds.append(&mut blk
-        .receipts()
-        .flat_map(|view| {
-            view.receipt.logs.iter()
-                .filter(|log| log.address == REGISTRY_TRACKED_CONTRACT)
-                .filter_map(|log| {
-                    if let Some(event) = abi::registry_contract::events::HubCreated::match_and_decode(log) {
-                        return Some(contract::RegistryHubCreated {
-                            evt_tx_hash: Hex(&view.transaction.hash).to_string(),
-                            evt_index: log.block_index,
-                            evt_block_time: Some(blk.timestamp().to_owned()),
-                            evt_block_number: blk.number,
-                            creator: event.creator,
-                            id: event.id.to_string(),
-                            is_private: event.is_private,
-                            receiver: event.receiver,
-                        });
-                    }
+                        None
+                    })
+            })
+            .collect(),
+    );
+    events.registry_hub_createds.append(
+        &mut blk
+            .receipts()
+            .flat_map(|view| {
+                view.receipt
+                    .logs
+                    .iter()
+                    .filter(|log| log.address == REGISTRY_TRACKED_CONTRACT)
+                    .filter_map(|log| {
+                        if let Some(event) =
+                            abi::registry_contract::events::HubCreated::match_and_decode(log)
+                        {
+                            return Some(contract::RegistryHubCreated {
+                                evt_tx_hash: Hex(&view.transaction.hash).to_string(),
+                                evt_index: log.block_index,
+                                evt_block_time: Some(blk.timestamp().to_owned()),
+                                evt_block_number: blk.number,
+                                creator: event.creator,
+                                id: event.id.to_string(),
+                                is_private: event.is_private,
+                                receiver: event.receiver,
+                            });
+                        }
 
-                    None
-                })
-        })
-        .collect());
-    events.registry_hubs_address_changeds.append(&mut blk
-        .receipts()
-        .flat_map(|view| {
-            view.receipt.logs.iter()
-                .filter(|log| log.address == REGISTRY_TRACKED_CONTRACT)
-                .filter_map(|log| {
-                    if let Some(event) = abi::registry_contract::events::HubsAddressChanged::match_and_decode(log) {
-                        return Some(contract::RegistryHubsAddressChanged {
-                            evt_tx_hash: Hex(&view.transaction.hash).to_string(),
-                            evt_index: log.block_index,
-                            evt_block_time: Some(blk.timestamp().to_owned()),
-                            evt_block_number: blk.number,
-                            new_address: event.new_address,
-                        });
-                    }
+                        None
+                    })
+            })
+            .collect(),
+    );
+    events.registry_hubs_address_changeds.append(
+        &mut blk
+            .receipts()
+            .flat_map(|view| {
+                view.receipt
+                    .logs
+                    .iter()
+                    .filter(|log| log.address == REGISTRY_TRACKED_CONTRACT)
+                    .filter_map(|log| {
+                        if let Some(event) =
+                            abi::registry_contract::events::HubsAddressChanged::match_and_decode(
+                                log,
+                            )
+                        {
+                            return Some(contract::RegistryHubsAddressChanged {
+                                evt_tx_hash: Hex(&view.transaction.hash).to_string(),
+                                evt_index: log.block_index,
+                                evt_block_time: Some(blk.timestamp().to_owned()),
+                                evt_block_number: blk.number,
+                                new_address: event.new_address,
+                            });
+                        }
 
-                    None
-                })
-        })
-        .collect());
-    events.registry_initializeds.append(&mut blk
-        .receipts()
-        .flat_map(|view| {
-            view.receipt.logs.iter()
-                .filter(|log| log.address == REGISTRY_TRACKED_CONTRACT)
-                .filter_map(|log| {
-                    if let Some(event) = abi::registry_contract::events::Initialized::match_and_decode(log) {
-                        return Some(contract::RegistryInitialized {
-                            evt_tx_hash: Hex(&view.transaction.hash).to_string(),
-                            evt_index: log.block_index,
-                            evt_block_time: Some(blk.timestamp().to_owned()),
-                            evt_block_number: blk.number,
-                            version: event.version.to_u64(),
-                        });
-                    }
+                        None
+                    })
+            })
+            .collect(),
+    );
+    events.registry_initializeds.append(
+        &mut blk
+            .receipts()
+            .flat_map(|view| {
+                view.receipt
+                    .logs
+                    .iter()
+                    .filter(|log| log.address == REGISTRY_TRACKED_CONTRACT)
+                    .filter_map(|log| {
+                        if let Some(event) =
+                            abi::registry_contract::events::Initialized::match_and_decode(log)
+                        {
+                            return Some(contract::RegistryInitialized {
+                                evt_tx_hash: Hex(&view.transaction.hash).to_string(),
+                                evt_index: log.block_index,
+                                evt_block_time: Some(blk.timestamp().to_owned()),
+                                evt_block_number: blk.number,
+                                version: event.version.to_u64(),
+                            });
+                        }
 
-                    None
-                })
-        })
-        .collect());
-    events.registry_item_createds.append(&mut blk
-        .receipts()
-        .flat_map(|view| {
-            view.receipt.logs.iter()
-                .filter(|log| log.address == REGISTRY_TRACKED_CONTRACT)
-                .filter_map(|log| {
-                    if let Some(event) = abi::registry_contract::events::ItemCreated::match_and_decode(log) {
-                        return Some(contract::RegistryItemCreated {
-                            evt_tx_hash: Hex(&view.transaction.hash).to_string(),
-                            evt_index: log.block_index,
-                            evt_block_time: Some(blk.timestamp().to_owned()),
-                            evt_block_number: blk.number,
-                            decimals: event.decimals.to_u64(),
-                            hub_id: event.hub_id.to_string(),
-                            id: event.id.to_string(),
-                            name: event.name,
-                            pool_type: event.pool_type.to_string(),
-                            symbol: event.symbol.hash,
-                            token_uri: event.token_uri,
-                        });
-                    }
+                        None
+                    })
+            })
+            .collect(),
+    );
+    events.registry_item_createds.append(
+        &mut blk
+            .receipts()
+            .flat_map(|view| {
+                view.receipt
+                    .logs
+                    .iter()
+                    .filter(|log| log.address == REGISTRY_TRACKED_CONTRACT)
+                    .filter_map(|log| {
+                        if let Some(event) =
+                            abi::registry_contract::events::ItemCreated::match_and_decode(log)
+                        {
+                            return Some(contract::RegistryItemCreated {
+                                evt_tx_hash: Hex(&view.transaction.hash).to_string(),
+                                evt_index: log.block_index,
+                                evt_block_time: Some(blk.timestamp().to_owned()),
+                                evt_block_number: blk.number,
+                                decimals: event.decimals.to_u64(),
+                                hub_id: event.hub_id.to_string(),
+                                id: event.id.to_string(),
+                                name: event.name,
+                                pool_type: event.pool_type.to_string(),
+                                symbol: event.symbol.hash,
+                                token_uri: event.token_uri,
+                            });
+                        }
 
-                    None
-                })
-        })
-        .collect());
-    events.registry_items_address_changeds.append(&mut blk
-        .receipts()
-        .flat_map(|view| {
-            view.receipt.logs.iter()
-                .filter(|log| log.address == REGISTRY_TRACKED_CONTRACT)
-                .filter_map(|log| {
-                    if let Some(event) = abi::registry_contract::events::ItemsAddressChanged::match_and_decode(log) {
-                        return Some(contract::RegistryItemsAddressChanged {
-                            evt_tx_hash: Hex(&view.transaction.hash).to_string(),
-                            evt_index: log.block_index,
-                            evt_block_time: Some(blk.timestamp().to_owned()),
-                            evt_block_number: blk.number,
-                            new_address: event.new_address,
-                        });
-                    }
+                        None
+                    })
+            })
+            .collect(),
+    );
+    events.registry_items_address_changeds.append(
+        &mut blk
+            .receipts()
+            .flat_map(|view| {
+                view.receipt
+                    .logs
+                    .iter()
+                    .filter(|log| log.address == REGISTRY_TRACKED_CONTRACT)
+                    .filter_map(|log| {
+                        if let Some(event) =
+                            abi::registry_contract::events::ItemsAddressChanged::match_and_decode(
+                                log,
+                            )
+                        {
+                            return Some(contract::RegistryItemsAddressChanged {
+                                evt_tx_hash: Hex(&view.transaction.hash).to_string(),
+                                evt_index: log.block_index,
+                                evt_block_time: Some(blk.timestamp().to_owned()),
+                                evt_block_number: blk.number,
+                                new_address: event.new_address,
+                            });
+                        }
 
-                    None
-                })
-        })
-        .collect());
+                        None
+                    })
+            })
+            .collect(),
+    );
     events.registry_launchpad_address_changeds.append(&mut blk
         .receipts()
         .flat_map(|view| {
@@ -451,120 +541,152 @@ fn map_registry_events(blk: &eth::Block, events: &mut contract::Events) {
                 })
         })
         .collect());
-    events.registry_manager_updateds.append(&mut blk
-        .receipts()
-        .flat_map(|view| {
-            view.receipt.logs.iter()
-                .filter(|log| log.address == REGISTRY_TRACKED_CONTRACT)
-                .filter_map(|log| {
-                    if let Some(event) = abi::registry_contract::events::ManagerUpdated::match_and_decode(log) {
-                        return Some(contract::RegistryManagerUpdated {
-                            evt_tx_hash: Hex(&view.transaction.hash).to_string(),
-                            evt_index: log.block_index,
-                            evt_block_time: Some(blk.timestamp().to_owned()),
-                            evt_block_number: blk.number,
-                            authorized: event.authorized,
-                            manager: event.manager,
-                        });
-                    }
+    events.registry_manager_updateds.append(
+        &mut blk
+            .receipts()
+            .flat_map(|view| {
+                view.receipt
+                    .logs
+                    .iter()
+                    .filter(|log| log.address == REGISTRY_TRACKED_CONTRACT)
+                    .filter_map(|log| {
+                        if let Some(event) =
+                            abi::registry_contract::events::ManagerUpdated::match_and_decode(log)
+                        {
+                            return Some(contract::RegistryManagerUpdated {
+                                evt_tx_hash: Hex(&view.transaction.hash).to_string(),
+                                evt_index: log.block_index,
+                                evt_block_time: Some(blk.timestamp().to_owned()),
+                                evt_block_number: blk.number,
+                                authorized: event.authorized,
+                                manager: event.manager,
+                            });
+                        }
 
-                    None
-                })
-        })
-        .collect());
-    events.registry_o_app_configureds.append(&mut blk
-        .receipts()
-        .flat_map(|view| {
-            view.receipt.logs.iter()
-                .filter(|log| log.address == REGISTRY_TRACKED_CONTRACT)
-                .filter_map(|log| {
-                    if let Some(event) = abi::registry_contract::events::OAppConfigured::match_and_decode(log) {
-                        return Some(contract::RegistryOAppConfigured {
-                            evt_tx_hash: Hex(&view.transaction.hash).to_string(),
-                            evt_index: log.block_index,
-                            evt_block_time: Some(blk.timestamp().to_owned()),
-                            evt_block_number: blk.number,
-                            endpoint_id: event.endpoint_id.to_u64(),
-                            receive_library: event.receive_library,
-                            send_library: event.send_library,
-                            token_address: event.token_address,
-                            token_id: Vec::from(event.token_id),
-                        });
-                    }
+                        None
+                    })
+            })
+            .collect(),
+    );
+    events.registry_o_app_configureds.append(
+        &mut blk
+            .receipts()
+            .flat_map(|view| {
+                view.receipt
+                    .logs
+                    .iter()
+                    .filter(|log| log.address == REGISTRY_TRACKED_CONTRACT)
+                    .filter_map(|log| {
+                        if let Some(event) =
+                            abi::registry_contract::events::OAppConfigured::match_and_decode(log)
+                        {
+                            return Some(contract::RegistryOAppConfigured {
+                                evt_tx_hash: Hex(&view.transaction.hash).to_string(),
+                                evt_index: log.block_index,
+                                evt_block_time: Some(blk.timestamp().to_owned()),
+                                evt_block_number: blk.number,
+                                endpoint_id: event.endpoint_id.to_u64(),
+                                receive_library: event.receive_library,
+                                send_library: event.send_library,
+                                token_address: event.token_address,
+                                token_id: Vec::from(event.token_id),
+                            });
+                        }
 
-                    None
-                })
-        })
-        .collect());
-    events.registry_ownership_transferreds.append(&mut blk
-        .receipts()
-        .flat_map(|view| {
-            view.receipt.logs.iter()
-                .filter(|log| log.address == REGISTRY_TRACKED_CONTRACT)
-                .filter_map(|log| {
-                    if let Some(event) = abi::registry_contract::events::OwnershipTransferred::match_and_decode(log) {
-                        return Some(contract::RegistryOwnershipTransferred {
-                            evt_tx_hash: Hex(&view.transaction.hash).to_string(),
-                            evt_index: log.block_index,
-                            evt_block_time: Some(blk.timestamp().to_owned()),
-                            evt_block_number: blk.number,
-                            new_owner: event.new_owner,
-                            user: event.user,
-                        });
-                    }
+                        None
+                    })
+            })
+            .collect(),
+    );
+    events.registry_ownership_transferreds.append(
+        &mut blk
+            .receipts()
+            .flat_map(|view| {
+                view.receipt
+                    .logs
+                    .iter()
+                    .filter(|log| log.address == REGISTRY_TRACKED_CONTRACT)
+                    .filter_map(|log| {
+                        if let Some(event) =
+                            abi::registry_contract::events::OwnershipTransferred::match_and_decode(
+                                log,
+                            )
+                        {
+                            return Some(contract::RegistryOwnershipTransferred {
+                                evt_tx_hash: Hex(&view.transaction.hash).to_string(),
+                                evt_index: log.block_index,
+                                evt_block_time: Some(blk.timestamp().to_owned()),
+                                evt_block_number: blk.number,
+                                new_owner: event.new_owner,
+                                user: event.user,
+                            });
+                        }
 
-                    None
-                })
-        })
-        .collect());
-    events.registry_peer_sets.append(&mut blk
-        .receipts()
-        .flat_map(|view| {
-            view.receipt.logs.iter()
-                .filter(|log| log.address == REGISTRY_TRACKED_CONTRACT)
-                .filter_map(|log| {
-                    if let Some(event) = abi::registry_contract::events::PeerSet::match_and_decode(log) {
-                        return Some(contract::RegistryPeerSet {
-                            evt_tx_hash: Hex(&view.transaction.hash).to_string(),
-                            evt_index: log.block_index,
-                            evt_block_time: Some(blk.timestamp().to_owned()),
-                            evt_block_number: blk.number,
-                            endpoint_id: event.endpoint_id.to_u64(),
-                            peer_address: Vec::from(event.peer_address),
-                            token_address: event.token_address,
-                            token_id: Vec::from(event.token_id),
-                        });
-                    }
+                        None
+                    })
+            })
+            .collect(),
+    );
+    events.registry_peer_sets.append(
+        &mut blk
+            .receipts()
+            .flat_map(|view| {
+                view.receipt
+                    .logs
+                    .iter()
+                    .filter(|log| log.address == REGISTRY_TRACKED_CONTRACT)
+                    .filter_map(|log| {
+                        if let Some(event) =
+                            abi::registry_contract::events::PeerSet::match_and_decode(log)
+                        {
+                            return Some(contract::RegistryPeerSet {
+                                evt_tx_hash: Hex(&view.transaction.hash).to_string(),
+                                evt_index: log.block_index,
+                                evt_block_time: Some(blk.timestamp().to_owned()),
+                                evt_block_number: blk.number,
+                                endpoint_id: event.endpoint_id.to_u64(),
+                                peer_address: Vec::from(event.peer_address),
+                                token_address: event.token_address,
+                                token_id: Vec::from(event.token_id),
+                            });
+                        }
 
-                    None
-                })
-        })
-        .collect());
-    events.registry_points_createds.append(&mut blk
-        .receipts()
-        .flat_map(|view| {
-            view.receipt.logs.iter()
-                .filter(|log| log.address == REGISTRY_TRACKED_CONTRACT)
-                .filter_map(|log| {
-                    if let Some(event) = abi::registry_contract::events::PointsCreated::match_and_decode(log) {
-                        return Some(contract::RegistryPointsCreated {
-                            evt_tx_hash: Hex(&view.transaction.hash).to_string(),
-                            evt_index: log.block_index,
-                            evt_block_time: Some(blk.timestamp().to_owned()),
-                            evt_block_number: blk.number,
-                            hub_id: event.hub_id.to_string(),
-                            id: event.id.to_string(),
-                            name: event.name,
-                            soulbound: event.soulbound,
-                            symbol: event.symbol,
-                            uri: event.uri,
-                        });
-                    }
+                        None
+                    })
+            })
+            .collect(),
+    );
+    events.registry_points_createds.append(
+        &mut blk
+            .receipts()
+            .flat_map(|view| {
+                view.receipt
+                    .logs
+                    .iter()
+                    .filter(|log| log.address == REGISTRY_TRACKED_CONTRACT)
+                    .filter_map(|log| {
+                        if let Some(event) =
+                            abi::registry_contract::events::PointsCreated::match_and_decode(log)
+                        {
+                            return Some(contract::RegistryPointsCreated {
+                                evt_tx_hash: Hex(&view.transaction.hash).to_string(),
+                                evt_index: log.block_index,
+                                evt_block_time: Some(blk.timestamp().to_owned()),
+                                evt_block_number: blk.number,
+                                hub_id: event.hub_id.to_string(),
+                                id: event.id.to_string(),
+                                name: event.name,
+                                soulbound: event.soulbound,
+                                symbol: event.symbol,
+                                uri: event.uri,
+                            });
+                        }
 
-                    None
-                })
-        })
-        .collect());
+                        None
+                    })
+            })
+            .collect(),
+    );
     events.registry_protocol_bonus_config_sets.append(&mut blk
         .receipts()
         .flat_map(|view| {
@@ -586,93 +708,119 @@ fn map_registry_events(blk: &eth::Block, events: &mut contract::Events) {
                 })
         })
         .collect());
-    events.registry_protocol_fee_sets.append(&mut blk
-        .receipts()
-        .flat_map(|view| {
-            view.receipt.logs.iter()
-                .filter(|log| log.address == REGISTRY_TRACKED_CONTRACT)
-                .filter_map(|log| {
-                    if let Some(event) = abi::registry_contract::events::ProtocolFeeSet::match_and_decode(log) {
-                        return Some(contract::RegistryProtocolFeeSet {
-                            evt_tx_hash: Hex(&view.transaction.hash).to_string(),
-                            evt_index: log.block_index,
-                            evt_block_time: Some(blk.timestamp().to_owned()),
-                            evt_block_number: blk.number,
-                            activity: event.activity.to_u64(),
-                            fee_bps: event.fee_bps.to_u64(),
-                        });
-                    }
+    events.registry_protocol_fee_sets.append(
+        &mut blk
+            .receipts()
+            .flat_map(|view| {
+                view.receipt
+                    .logs
+                    .iter()
+                    .filter(|log| log.address == REGISTRY_TRACKED_CONTRACT)
+                    .filter_map(|log| {
+                        if let Some(event) =
+                            abi::registry_contract::events::ProtocolFeeSet::match_and_decode(log)
+                        {
+                            return Some(contract::RegistryProtocolFeeSet {
+                                evt_tx_hash: Hex(&view.transaction.hash).to_string(),
+                                evt_index: log.block_index,
+                                evt_block_time: Some(blk.timestamp().to_owned()),
+                                evt_block_number: blk.number,
+                                activity: event.activity.to_u64(),
+                                fee_bps: event.fee_bps.to_u64(),
+                            });
+                        }
 
-                    None
-                })
-        })
-        .collect());
-    events.registry_protocol_limit_sets.append(&mut blk
-        .receipts()
-        .flat_map(|view| {
-            view.receipt.logs.iter()
-                .filter(|log| log.address == REGISTRY_TRACKED_CONTRACT)
-                .filter_map(|log| {
-                    if let Some(event) = abi::registry_contract::events::ProtocolLimitSet::match_and_decode(log) {
-                        return Some(contract::RegistryProtocolLimitSet {
-                            evt_tx_hash: Hex(&view.transaction.hash).to_string(),
-                            evt_index: log.block_index,
-                            evt_block_time: Some(blk.timestamp().to_owned()),
-                            evt_block_number: blk.number,
-                            activity: event.activity.to_u64(),
-                            max_fee_bps: event.max_fee_bps.to_u64(),
-                        });
-                    }
+                        None
+                    })
+            })
+            .collect(),
+    );
+    events.registry_protocol_limit_sets.append(
+        &mut blk
+            .receipts()
+            .flat_map(|view| {
+                view.receipt
+                    .logs
+                    .iter()
+                    .filter(|log| log.address == REGISTRY_TRACKED_CONTRACT)
+                    .filter_map(|log| {
+                        if let Some(event) =
+                            abi::registry_contract::events::ProtocolLimitSet::match_and_decode(log)
+                        {
+                            return Some(contract::RegistryProtocolLimitSet {
+                                evt_tx_hash: Hex(&view.transaction.hash).to_string(),
+                                evt_index: log.block_index,
+                                evt_block_time: Some(blk.timestamp().to_owned()),
+                                evt_block_number: blk.number,
+                                activity: event.activity.to_u64(),
+                                max_fee_bps: event.max_fee_bps.to_u64(),
+                            });
+                        }
 
-                    None
-                })
-        })
-        .collect());
-    events.registry_referral_sets.append(&mut blk
-        .receipts()
-        .flat_map(|view| {
-            view.receipt.logs.iter()
-                .filter(|log| log.address == REGISTRY_TRACKED_CONTRACT)
-                .filter_map(|log| {
-                    if let Some(event) = abi::registry_contract::events::ReferralSet::match_and_decode(log) {
-                        return Some(contract::RegistryReferralSet {
-                            evt_tx_hash: Hex(&view.transaction.hash).to_string(),
-                            evt_index: log.block_index,
-                            evt_block_time: Some(blk.timestamp().to_owned()),
-                            evt_block_number: blk.number,
-                            discount_active: event.discount_active,
-                            referee: event.referee,
-                            referrer: event.referrer,
-                            reward_active: event.reward_active,
-                        });
-                    }
+                        None
+                    })
+            })
+            .collect(),
+    );
+    events.registry_referral_sets.append(
+        &mut blk
+            .receipts()
+            .flat_map(|view| {
+                view.receipt
+                    .logs
+                    .iter()
+                    .filter(|log| log.address == REGISTRY_TRACKED_CONTRACT)
+                    .filter_map(|log| {
+                        if let Some(event) =
+                            abi::registry_contract::events::ReferralSet::match_and_decode(log)
+                        {
+                            return Some(contract::RegistryReferralSet {
+                                evt_tx_hash: Hex(&view.transaction.hash).to_string(),
+                                evt_index: log.block_index,
+                                evt_block_time: Some(blk.timestamp().to_owned()),
+                                evt_block_number: blk.number,
+                                discount_active: event.discount_active,
+                                referee: event.referee,
+                                referrer: event.referrer,
+                                reward_active: event.reward_active,
+                            });
+                        }
 
-                    None
-                })
-        })
-        .collect());
-    events.registry_referral_status_updateds.append(&mut blk
-        .receipts()
-        .flat_map(|view| {
-            view.receipt.logs.iter()
-                .filter(|log| log.address == REGISTRY_TRACKED_CONTRACT)
-                .filter_map(|log| {
-                    if let Some(event) = abi::registry_contract::events::ReferralStatusUpdated::match_and_decode(log) {
-                        return Some(contract::RegistryReferralStatusUpdated {
-                            evt_tx_hash: Hex(&view.transaction.hash).to_string(),
-                            evt_index: log.block_index,
-                            evt_block_time: Some(blk.timestamp().to_owned()),
-                            evt_block_number: blk.number,
-                            discount_active: event.discount_active,
-                            referee: event.referee,
-                            reward_active: event.reward_active,
-                        });
-                    }
+                        None
+                    })
+            })
+            .collect(),
+    );
+    events.registry_referral_status_updateds.append(
+        &mut blk
+            .receipts()
+            .flat_map(|view| {
+                view.receipt
+                    .logs
+                    .iter()
+                    .filter(|log| log.address == REGISTRY_TRACKED_CONTRACT)
+                    .filter_map(|log| {
+                        if let Some(event) =
+                            abi::registry_contract::events::ReferralStatusUpdated::match_and_decode(
+                                log,
+                            )
+                        {
+                            return Some(contract::RegistryReferralStatusUpdated {
+                                evt_tx_hash: Hex(&view.transaction.hash).to_string(),
+                                evt_index: log.block_index,
+                                evt_block_time: Some(blk.timestamp().to_owned()),
+                                evt_block_number: blk.number,
+                                discount_active: event.discount_active,
+                                referee: event.referee,
+                                reward_active: event.reward_active,
+                            });
+                        }
 
-                    None
-                })
-        })
-        .collect());
+                        None
+                    })
+            })
+            .collect(),
+    );
     events.registry_referrals_controller_updateds.append(&mut blk
         .receipts()
         .flat_map(|view| {
@@ -694,145 +842,188 @@ fn map_registry_events(blk: &eth::Block, events: &mut contract::Events) {
                 })
         })
         .collect());
-    events.registry_registry_initializeds.append(&mut blk
-        .receipts()
-        .flat_map(|view| {
-            view.receipt.logs.iter()
-                .filter(|log| log.address == REGISTRY_TRACKED_CONTRACT)
-                .filter_map(|log| {
-                    if let Some(event) = abi::registry_contract::events::RegistryInitialized::match_and_decode(log) {
-                        return Some(contract::RegistryRegistryInitialized {
-                            evt_tx_hash: Hex(&view.transaction.hash).to_string(),
-                            evt_index: log.block_index,
-                            evt_block_time: Some(blk.timestamp().to_owned()),
-                            evt_block_number: blk.number,
-                            endpoint: event.endpoint,
-                            owner: event.owner,
-                            payment_token: event.payment_token,
-                            protocol_fee_to: event.protocol_fee_to,
-                            swap_router: event.swap_router,
-                            trusted_forwarder: event.trusted_forwarder,
-                        });
-                    }
+    events.registry_registry_initializeds.append(
+        &mut blk
+            .receipts()
+            .flat_map(|view| {
+                view.receipt
+                    .logs
+                    .iter()
+                    .filter(|log| log.address == REGISTRY_TRACKED_CONTRACT)
+                    .filter_map(|log| {
+                        if let Some(event) =
+                            abi::registry_contract::events::RegistryInitialized::match_and_decode(
+                                log,
+                            )
+                        {
+                            return Some(contract::RegistryRegistryInitialized {
+                                evt_tx_hash: Hex(&view.transaction.hash).to_string(),
+                                evt_index: log.block_index,
+                                evt_block_time: Some(blk.timestamp().to_owned()),
+                                evt_block_number: blk.number,
+                                endpoint: event.endpoint,
+                                owner: event.owner,
+                                payment_token: event.payment_token,
+                                protocol_fee_to: event.protocol_fee_to,
+                                swap_router: event.swap_router,
+                                trusted_forwarder: event.trusted_forwarder,
+                            });
+                        }
 
-                    None
-                })
-        })
-        .collect());
-    events.registry_token_createds.append(&mut blk
-        .receipts()
-        .flat_map(|view| {
-            view.receipt.logs.iter()
-                .filter(|log| log.address == REGISTRY_TRACKED_CONTRACT)
-                .filter_map(|log| {
-                    if let Some(event) = abi::registry_contract::events::TokenCreated::match_and_decode(log) {
-                        return Some(contract::RegistryTokenCreated {
-                            evt_tx_hash: Hex(&view.transaction.hash).to_string(),
-                            evt_index: log.block_index,
-                            evt_block_time: Some(blk.timestamp().to_owned()),
-                            evt_block_number: blk.number,
-                            decimals: event.decimals.to_u64(),
-                            ip_id: event.hub_id.to_string(),
-                            name: event.name,
-                            symbol: event.symbol,
-                            token_address: format!("0x{}", Hex(&event.token_address).to_string()),
-                            token_id: format!("0x{}", Hex(&log.topics[2]).to_string()),
-                            token_uri: event.token_uri,
-                        });
-                    }
+                        None
+                    })
+            })
+            .collect(),
+    );
+    events.registry_token_createds.append(
+        &mut blk
+            .receipts()
+            .flat_map(|view| {
+                view.receipt
+                    .logs
+                    .iter()
+                    .filter(|log| log.address == REGISTRY_TRACKED_CONTRACT)
+                    .filter_map(|log| {
+                        if let Some(event) =
+                            abi::registry_contract::events::TokenCreated::match_and_decode(log)
+                        {
+                            return Some(contract::RegistryTokenCreated {
+                                evt_tx_hash: Hex(&view.transaction.hash).to_string(),
+                                evt_index: log.block_index,
+                                evt_block_time: Some(blk.timestamp().to_owned()),
+                                evt_block_number: blk.number,
+                                decimals: event.decimals.to_u64(),
+                                ip_id: event.hub_id.to_string(),
+                                name: event.name,
+                                symbol: event.symbol,
+                                token_address: format!(
+                                    "0x{}",
+                                    Hex(&event.token_address).to_string()
+                                ),
+                                token_id: format!("0x{}", Hex(&log.topics[2]).to_string()),
+                                token_uri: event.token_uri,
+                            });
+                        }
 
-                    None
-                })
-        })
-        .collect());
-    events.registry_token_registereds.append(&mut blk
-        .receipts()
-        .flat_map(|view| {
-            view.receipt.logs.iter()
-                .filter(|log| log.address == REGISTRY_TRACKED_CONTRACT)
-                .filter_map(|log| {
-                    if let Some(event) = abi::registry_contract::events::TokenRegistered::match_and_decode(log) {
-                        return Some(contract::RegistryTokenRegistered {
-                            evt_tx_hash: Hex(&view.transaction.hash).to_string(),
-                            evt_index: log.block_index,
-                            evt_block_time: Some(blk.timestamp().to_owned()),
-                            evt_block_number: blk.number,
-                            name: event.name,
-                            symbol: event.symbol,
-                            template_id: Vec::from(event.template_id),
-                            token_address: event.token_address,
-                            token_id: format!("0x{}", Hex(&event.token_id).to_string()),
-                        });
-                    }
+                        None
+                    })
+            })
+            .collect(),
+    );
+    events.registry_token_registereds.append(
+        &mut blk
+            .receipts()
+            .flat_map(|view| {
+                view.receipt
+                    .logs
+                    .iter()
+                    .filter(|log| log.address == REGISTRY_TRACKED_CONTRACT)
+                    .filter_map(|log| {
+                        if let Some(event) =
+                            abi::registry_contract::events::TokenRegistered::match_and_decode(log)
+                        {
+                            return Some(contract::RegistryTokenRegistered {
+                                evt_tx_hash: Hex(&view.transaction.hash).to_string(),
+                                evt_index: log.block_index,
+                                evt_block_time: Some(blk.timestamp().to_owned()),
+                                evt_block_number: blk.number,
+                                name: event.name,
+                                symbol: event.symbol,
+                                template_id: Vec::from(event.template_id),
+                                token_address: event.token_address,
+                                token_id: format!("0x{}", Hex(&event.token_id).to_string()),
+                            });
+                        }
 
-                    None
-                })
-        })
-        .collect());
-    events.registry_token_template_resets.append(&mut blk
-        .receipts()
-        .flat_map(|view| {
-            view.receipt.logs.iter()
-                .filter(|log| log.address == REGISTRY_TRACKED_CONTRACT)
-                .filter_map(|log| {
-                    if let Some(event) = abi::registry_contract::events::TokenTemplateReset::match_and_decode(log) {
-                        return Some(contract::RegistryTokenTemplateReset {
-                            evt_tx_hash: Hex(&view.transaction.hash).to_string(),
-                            evt_index: log.block_index,
-                            evt_block_time: Some(blk.timestamp().to_owned()),
-                            evt_block_number: blk.number,
-                            template_id: Vec::from(event.template_id),
-                        });
-                    }
+                        None
+                    })
+            })
+            .collect(),
+    );
+    events.registry_token_template_resets.append(
+        &mut blk
+            .receipts()
+            .flat_map(|view| {
+                view.receipt
+                    .logs
+                    .iter()
+                    .filter(|log| log.address == REGISTRY_TRACKED_CONTRACT)
+                    .filter_map(|log| {
+                        if let Some(event) =
+                            abi::registry_contract::events::TokenTemplateReset::match_and_decode(
+                                log,
+                            )
+                        {
+                            return Some(contract::RegistryTokenTemplateReset {
+                                evt_tx_hash: Hex(&view.transaction.hash).to_string(),
+                                evt_index: log.block_index,
+                                evt_block_time: Some(blk.timestamp().to_owned()),
+                                evt_block_number: blk.number,
+                                template_id: Vec::from(event.template_id),
+                            });
+                        }
 
-                    None
-                })
-        })
-        .collect());
-    events.registry_token_template_sets.append(&mut blk
-        .receipts()
-        .flat_map(|view| {
-            view.receipt.logs.iter()
-                .filter(|log| log.address == REGISTRY_TRACKED_CONTRACT)
-                .filter_map(|log| {
-                    if let Some(event) = abi::registry_contract::events::TokenTemplateSet::match_and_decode(log) {
-                        return Some(contract::RegistryTokenTemplateSet {
-                            evt_tx_hash: Hex(&view.transaction.hash).to_string(),
-                            evt_index: log.block_index,
-                            evt_block_time: Some(blk.timestamp().to_owned()),
-                            evt_block_number: blk.number,
-                            implementation_address: event.implementation_address,
-                            template_id: Vec::from(event.template_id),
-                            token_type: event.token_type.to_u64(),
-                            total_supply: event.total_supply.to_string(),
-                        });
-                    }
+                        None
+                    })
+            })
+            .collect(),
+    );
+    events.registry_token_template_sets.append(
+        &mut blk
+            .receipts()
+            .flat_map(|view| {
+                view.receipt
+                    .logs
+                    .iter()
+                    .filter(|log| log.address == REGISTRY_TRACKED_CONTRACT)
+                    .filter_map(|log| {
+                        if let Some(event) =
+                            abi::registry_contract::events::TokenTemplateSet::match_and_decode(log)
+                        {
+                            return Some(contract::RegistryTokenTemplateSet {
+                                evt_tx_hash: Hex(&view.transaction.hash).to_string(),
+                                evt_index: log.block_index,
+                                evt_block_time: Some(blk.timestamp().to_owned()),
+                                evt_block_number: blk.number,
+                                implementation_address: event.implementation_address,
+                                template_id: Vec::from(event.template_id),
+                                token_type: event.token_type.to_u64(),
+                                total_supply: event.total_supply.to_string(),
+                            });
+                        }
 
-                    None
-                })
-        })
-        .collect());
-    events.registry_whitelist_toggleds.append(&mut blk
-        .receipts()
-        .flat_map(|view| {
-            view.receipt.logs.iter()
-                .filter(|log| log.address == REGISTRY_TRACKED_CONTRACT)
-                .filter_map(|log| {
-                    if let Some(event) = abi::registry_contract::events::WhitelistToggled::match_and_decode(log) {
-                        return Some(contract::RegistryWhitelistToggled {
-                            evt_tx_hash: Hex(&view.transaction.hash).to_string(),
-                            evt_index: log.block_index,
-                            evt_block_time: Some(blk.timestamp().to_owned()),
-                            evt_block_number: blk.number,
-                            contract_address: event.contract_address,
-                            whitelisted: event.whitelisted,
-                        });
-                    }
+                        None
+                    })
+            })
+            .collect(),
+    );
+    events.registry_whitelist_toggleds.append(
+        &mut blk
+            .receipts()
+            .flat_map(|view| {
+                view.receipt
+                    .logs
+                    .iter()
+                    .filter(|log| log.address == REGISTRY_TRACKED_CONTRACT)
+                    .filter_map(|log| {
+                        if let Some(event) =
+                            abi::registry_contract::events::WhitelistToggled::match_and_decode(log)
+                        {
+                            return Some(contract::RegistryWhitelistToggled {
+                                evt_tx_hash: Hex(&view.transaction.hash).to_string(),
+                                evt_index: log.block_index,
+                                evt_block_time: Some(blk.timestamp().to_owned()),
+                                evt_block_number: blk.number,
+                                contract_address: event.contract_address,
+                                whitelisted: event.whitelisted,
+                            });
+                        }
 
-                    None
-                })
-        })
-        .collect());
+                        None
+                    })
+            })
+            .collect(),
+    );
 }
 
 fn map_uniswap_v3_pool_created_events(
@@ -842,199 +1033,267 @@ fn map_uniswap_v3_pool_created_events(
     uniswap_v3_factory: &String,
     events: &mut contract::Events,
 ) {
-    events.uniswap_v3_pool_createds.append(&mut blk
-        .receipts()
-        .flat_map(|view| {
-            view.receipt.logs.iter()
-                .filter(|log| Hex(&log.address).to_string() == *uniswap_v3_factory)
-                .filter_map(|log| {
-                    if let Some(event) = abi::uniswap_v3_factory_contract::events::PoolCreated::match_and_decode(log) {
-                        if !is_declared_dds_address(&event.token0, log.ordinal, tracked_tokens_store)
-                            && !is_declared_dds_address(&event.token1, log.ordinal, tracked_tokens_store)
+    events.uniswap_v3_pool_createds.append(
+        &mut blk
+            .receipts()
+            .flat_map(|view| {
+                view.receipt
+                    .logs
+                    .iter()
+                    .filter(|log| Hex(&log.address).to_string() == *uniswap_v3_factory)
+                    .filter_map(|log| {
+                        if let Some(event) =
+                            abi::uniswap_v3_factory_contract::events::PoolCreated::match_and_decode(
+                                log,
+                            )
                         {
-                            return None;
+                            if !is_declared_dds_address(
+                                &event.token0,
+                                log.ordinal,
+                                tracked_tokens_store,
+                            ) && !is_declared_dds_address(
+                                &event.token1,
+                                log.ordinal,
+                                tracked_tokens_store,
+                            ) {
+                                return None;
+                            }
+                            let token0_address = format!("0x{}", Hex(&event.token0).to_string());
+                            let token1_address = format!("0x{}", Hex(&event.token1).to_string());
+                            let token0_layer_id = token_layer_id_from_token_address(
+                                token_id_to_address_store,
+                                &token0_address,
+                            );
+                            let token1_layer_id = token_layer_id_from_token_address(
+                                token_id_to_address_store,
+                                &token1_address,
+                            );
+                            let (token_address, token_layer_id) = if !token0_layer_id.is_empty() {
+                                (token0_address.clone(), token0_layer_id)
+                            } else if !token1_layer_id.is_empty() {
+                                (token1_address.clone(), token1_layer_id)
+                            } else {
+                                (String::new(), String::new())
+                            };
+                            return Some(contract::UniswapV3PoolCreated {
+                                evt_tx_hash: Hex(&view.transaction.hash).to_string(),
+                                evt_index: log.block_index,
+                                evt_block_time: Some(blk.timestamp().to_owned()),
+                                evt_block_number: blk.number,
+                                pool: format!("0x{}", Hex(&event.pool).to_string()),
+                                token0: token0_address,
+                                token1: token1_address,
+                                fee: event.fee.to_u64(),
+                                // PoolCreated event doesn't include sqrt_price_x96; use numeric zero for schema compatibility.
+                                sqrt_price_x96: "0".to_string(),
+                                token_address,
+                                token_layer_id,
+                            });
                         }
-                        let token0_address = format!("0x{}", Hex(&event.token0).to_string());
-                        let token1_address = format!("0x{}", Hex(&event.token1).to_string());
-                        let token0_layer_id = token_layer_id_from_token_address(token_id_to_address_store, &token0_address);
-                        let token1_layer_id = token_layer_id_from_token_address(token_id_to_address_store, &token1_address);
-                        let (token_address, token_layer_id) = if !token0_layer_id.is_empty() {
-                            (token0_address.clone(), token0_layer_id)
-                        } else if !token1_layer_id.is_empty() {
-                            (token1_address.clone(), token1_layer_id)
-                        } else {
-                            (String::new(), String::new())
-                        };
-                        return Some(contract::UniswapV3PoolCreated {
-                            evt_tx_hash: Hex(&view.transaction.hash).to_string(),
-                            evt_index: log.block_index,
-                            evt_block_time: Some(blk.timestamp().to_owned()),
-                            evt_block_number: blk.number,
-                            pool: format!("0x{}", Hex(&event.pool).to_string()),
-                            token0: token0_address,
-                            token1: token1_address,
-                            fee: event.fee.to_u64(),
-                            // PoolCreated event doesn't include sqrt_price_x96; use numeric zero for schema compatibility.
-                            sqrt_price_x96: "0".to_string(),
-                            token_address,
-                            token_layer_id,
-                        });
-                    }
 
-                    None
-                })
-        })
-        .collect());
+                        None
+                    })
+            })
+            .collect(),
+    );
 }
-fn map_oapp_events(blk: &eth::Block, oapp_tracked_contract: &[u8; 20], events: &mut contract::Events) {
-    events.oapp_eth_withdrawns.append(&mut blk
-        .receipts()
-        .flat_map(|view| {
-            view.receipt.logs.iter()
-                .filter(|log| log.address == *oapp_tracked_contract)
-                .filter_map(|log| {
-                    if let Some(event) = abi::oapp_contract::events::EthWithdrawn::match_and_decode(log) {
-                        return Some(contract::OappEthWithdrawn {
-                            evt_tx_hash: Hex(&view.transaction.hash).to_string(),
-                            evt_index: log.block_index,
-                            evt_block_time: Some(blk.timestamp().to_owned()),
-                            evt_block_number: blk.number,
-                            amount: event.amount.to_string(),
-                            owner: event.owner,
-                        });
-                    }
+fn map_oapp_events(
+    blk: &eth::Block,
+    oapp_tracked_contract: &[u8; 20],
+    events: &mut contract::Events,
+) {
+    events.oapp_eth_withdrawns.append(
+        &mut blk
+            .receipts()
+            .flat_map(|view| {
+                view.receipt
+                    .logs
+                    .iter()
+                    .filter(|log| log.address == *oapp_tracked_contract)
+                    .filter_map(|log| {
+                        if let Some(event) =
+                            abi::oapp_contract::events::EthWithdrawn::match_and_decode(log)
+                        {
+                            return Some(contract::OappEthWithdrawn {
+                                evt_tx_hash: Hex(&view.transaction.hash).to_string(),
+                                evt_index: log.block_index,
+                                evt_block_time: Some(blk.timestamp().to_owned()),
+                                evt_block_number: blk.number,
+                                amount: event.amount.to_string(),
+                                owner: event.owner,
+                            });
+                        }
 
-                    None
-                })
-        })
-        .collect());
-    events.oapp_enforced_option_sets.append(&mut blk
-        .receipts()
-        .flat_map(|view| {
-            view.receipt.logs.iter()
-                .filter(|log| log.address == *oapp_tracked_contract)
-                .filter_map(|log| {
-                    if let Some(event) = abi::oapp_contract::events::EnforcedOptionSet::match_and_decode(log) {
-                        return Some(contract::OappEnforcedOptionSet {
-                            evt_tx_hash: Hex(&view.transaction.hash).to_string(),
-                            evt_index: log.block_index,
-                            evt_block_time: Some(blk.timestamp().to_owned()),
-                            evt_block_number: blk.number,
-                        });
-                    }
+                        None
+                    })
+            })
+            .collect(),
+    );
+    events.oapp_enforced_option_sets.append(
+        &mut blk
+            .receipts()
+            .flat_map(|view| {
+                view.receipt
+                    .logs
+                    .iter()
+                    .filter(|log| log.address == *oapp_tracked_contract)
+                    .filter_map(|log| {
+                        if let Some(event) =
+                            abi::oapp_contract::events::EnforcedOptionSet::match_and_decode(log)
+                        {
+                            return Some(contract::OappEnforcedOptionSet {
+                                evt_tx_hash: Hex(&view.transaction.hash).to_string(),
+                                evt_index: log.block_index,
+                                evt_block_time: Some(blk.timestamp().to_owned()),
+                                evt_block_number: blk.number,
+                            });
+                        }
 
-                    None
-                })
-        })
-        .collect());
-    events.oapp_message_receiveds.append(&mut blk
-        .receipts()
-        .flat_map(|view| {
-            view.receipt.logs.iter()
-                .filter(|log| log.address == *oapp_tracked_contract)
-                .filter_map(|log| {
-                    if let Some(event) = abi::oapp_contract::events::MessageReceived::match_and_decode(log) {
-                        return Some(contract::OappMessageReceived {
-                            evt_tx_hash: Hex(&view.transaction.hash).to_string(),
-                            evt_index: log.block_index,
-                            evt_block_time: Some(blk.timestamp().to_owned()),
-                            evt_block_number: blk.number,
-                            guid: Vec::from(event.guid),
-                            msg_type: event.msg_type.to_u64(),
-                            src_eid: event.src_eid.to_u64(),
-                        });
-                    }
+                        None
+                    })
+            })
+            .collect(),
+    );
+    events.oapp_message_receiveds.append(
+        &mut blk
+            .receipts()
+            .flat_map(|view| {
+                view.receipt
+                    .logs
+                    .iter()
+                    .filter(|log| log.address == *oapp_tracked_contract)
+                    .filter_map(|log| {
+                        if let Some(event) =
+                            abi::oapp_contract::events::MessageReceived::match_and_decode(log)
+                        {
+                            return Some(contract::OappMessageReceived {
+                                evt_tx_hash: Hex(&view.transaction.hash).to_string(),
+                                evt_index: log.block_index,
+                                evt_block_time: Some(blk.timestamp().to_owned()),
+                                evt_block_number: blk.number,
+                                guid: Vec::from(event.guid),
+                                msg_type: event.msg_type.to_u64(),
+                                src_eid: event.src_eid.to_u64(),
+                            });
+                        }
 
-                    None
-                })
-        })
-        .collect());
-    events.oapp_operation_createds.append(&mut blk
-        .receipts()
-        .flat_map(|view| {
-            view.receipt.logs.iter()
-                .filter(|log| log.address == *oapp_tracked_contract)
-                .filter_map(|log| {
-                    if let Some(event) = abi::oapp_contract::events::OperationCreated::match_and_decode(log) {
-                        return Some(contract::OappOperationCreated {
-                            evt_tx_hash: Hex(&view.transaction.hash).to_string(),
-                            evt_index: log.block_index,
-                            evt_block_time: Some(blk.timestamp().to_owned()),
-                            evt_block_number: blk.number,
-                            amount: event.amount.to_string(),
-                            dst_eid: event.dst_eid.to_u64(),
-                            operation_id: event.operation_id.to_u64(),
-                            operation_type: event.operation_type.to_u64(),
-                            token_id: Vec::from(event.token_id),
-                        });
-                    }
+                        None
+                    })
+            })
+            .collect(),
+    );
+    events.oapp_operation_createds.append(
+        &mut blk
+            .receipts()
+            .flat_map(|view| {
+                view.receipt
+                    .logs
+                    .iter()
+                    .filter(|log| log.address == *oapp_tracked_contract)
+                    .filter_map(|log| {
+                        if let Some(event) =
+                            abi::oapp_contract::events::OperationCreated::match_and_decode(log)
+                        {
+                            return Some(contract::OappOperationCreated {
+                                evt_tx_hash: Hex(&view.transaction.hash).to_string(),
+                                evt_index: log.block_index,
+                                evt_block_time: Some(blk.timestamp().to_owned()),
+                                evt_block_number: blk.number,
+                                amount: event.amount.to_string(),
+                                dst_eid: event.dst_eid.to_u64(),
+                                operation_id: event.operation_id.to_u64(),
+                                operation_type: event.operation_type.to_u64(),
+                                token_id: Vec::from(event.token_id),
+                            });
+                        }
 
-                    None
-                })
-        })
-        .collect());
-    events.oapp_ownership_transferreds.append(&mut blk
-        .receipts()
-        .flat_map(|view| {
-            view.receipt.logs.iter()
-                .filter(|log| log.address == *oapp_tracked_contract)
-                .filter_map(|log| {
-                    if let Some(event) = abi::oapp_contract::events::OwnershipTransferred::match_and_decode(log) {
-                        return Some(contract::OappOwnershipTransferred {
-                            evt_tx_hash: Hex(&view.transaction.hash).to_string(),
-                            evt_index: log.block_index,
-                            evt_block_time: Some(blk.timestamp().to_owned()),
-                            evt_block_number: blk.number,
-                            new_owner: event.new_owner,
-                            user: event.user,
-                        });
-                    }
+                        None
+                    })
+            })
+            .collect(),
+    );
+    events.oapp_ownership_transferreds.append(
+        &mut blk
+            .receipts()
+            .flat_map(|view| {
+                view.receipt
+                    .logs
+                    .iter()
+                    .filter(|log| log.address == *oapp_tracked_contract)
+                    .filter_map(|log| {
+                        if let Some(event) =
+                            abi::oapp_contract::events::OwnershipTransferred::match_and_decode(log)
+                        {
+                            return Some(contract::OappOwnershipTransferred {
+                                evt_tx_hash: Hex(&view.transaction.hash).to_string(),
+                                evt_index: log.block_index,
+                                evt_block_time: Some(blk.timestamp().to_owned()),
+                                evt_block_number: blk.number,
+                                new_owner: event.new_owner,
+                                user: event.user,
+                            });
+                        }
 
-                    None
-                })
-        })
-        .collect());
-    events.oapp_peer_sets.append(&mut blk
-        .receipts()
-        .flat_map(|view| {
-            view.receipt.logs.iter()
-                .filter(|log| log.address == *oapp_tracked_contract)
-                .filter_map(|log| {
-                    if let Some(event) = abi::oapp_contract::events::PeerSet::match_and_decode(log) {
-                        return Some(contract::OappPeerSet {
-                            evt_tx_hash: Hex(&view.transaction.hash).to_string(),
-                            evt_index: log.block_index,
-                            evt_block_time: Some(blk.timestamp().to_owned()),
-                            evt_block_number: blk.number,
-                            eid: event.eid.to_u64(),
-                            peer: Vec::from(event.peer),
-                        });
-                    }
+                        None
+                    })
+            })
+            .collect(),
+    );
+    events.oapp_peer_sets.append(
+        &mut blk
+            .receipts()
+            .flat_map(|view| {
+                view.receipt
+                    .logs
+                    .iter()
+                    .filter(|log| log.address == *oapp_tracked_contract)
+                    .filter_map(|log| {
+                        if let Some(event) =
+                            abi::oapp_contract::events::PeerSet::match_and_decode(log)
+                        {
+                            return Some(contract::OappPeerSet {
+                                evt_tx_hash: Hex(&view.transaction.hash).to_string(),
+                                evt_index: log.block_index,
+                                evt_block_time: Some(blk.timestamp().to_owned()),
+                                evt_block_number: blk.number,
+                                eid: event.eid.to_u64(),
+                                peer: Vec::from(event.peer),
+                            });
+                        }
 
-                    None
-                })
-        })
-        .collect());
-    events.oapp_solana_liquidity_manager_sets.append(&mut blk
-        .receipts()
-        .flat_map(|view| {
-            view.receipt.logs.iter()
-                .filter(|log| log.address == *oapp_tracked_contract)
-                .filter_map(|log| {
-                    if let Some(event) = abi::oapp_contract::events::SolanaLiquidityManagerSet::match_and_decode(log) {
-                        return Some(contract::OappSolanaLiquidityManagerSet {
-                            evt_tx_hash: Hex(&view.transaction.hash).to_string(),
-                            evt_index: log.block_index,
-                            evt_block_time: Some(blk.timestamp().to_owned()),
-                            evt_block_number: blk.number,
-                            liquidity_manager: Vec::from(event.liquidity_manager),
-                        });
-                    }
+                        None
+                    })
+            })
+            .collect(),
+    );
+    events.oapp_solana_liquidity_manager_sets.append(
+        &mut blk
+            .receipts()
+            .flat_map(|view| {
+                view.receipt
+                    .logs
+                    .iter()
+                    .filter(|log| log.address == *oapp_tracked_contract)
+                    .filter_map(|log| {
+                        if let Some(event) =
+                            abi::oapp_contract::events::SolanaLiquidityManagerSet::match_and_decode(
+                                log,
+                            )
+                        {
+                            return Some(contract::OappSolanaLiquidityManagerSet {
+                                evt_tx_hash: Hex(&view.transaction.hash).to_string(),
+                                evt_index: log.block_index,
+                                evt_block_time: Some(blk.timestamp().to_owned()),
+                                evt_block_number: blk.number,
+                                liquidity_manager: Vec::from(event.liquidity_manager),
+                            });
+                        }
 
-                    None
-                })
-        })
-        .collect());
+                        None
+                    })
+            })
+            .collect(),
+    );
     events.oapp_token_liquidity_initialized_externallies.append(&mut blk
         .receipts()
         .flat_map(|view| {
@@ -1059,50 +1318,64 @@ fn map_oapp_events(blk: &eth::Block, oapp_tracked_contract: &[u8; 20], events: &
                 })
         })
         .collect());
-    events.oapp_token_registered_externallies.append(&mut blk
-        .receipts()
-        .flat_map(|view| {
-            view.receipt.logs.iter()
-                .filter(|log| log.address == *oapp_tracked_contract)
-                .filter_map(|log| {
-                    if let Some(event) = abi::oapp_contract::events::TokenRegisteredExternally::match_and_decode(log) {
-                        return Some(contract::OappTokenRegisteredExternally {
-                            evt_tx_hash: Hex(&view.transaction.hash).to_string(),
-                            evt_index: log.block_index,
-                            evt_block_time: Some(blk.timestamp().to_owned()),
-                            evt_block_number: blk.number,
-                            dst_eid: event.dst_eid.to_u64(),
-                            operation_id: event.operation_id.to_u64(),
-                            src_eid: event.src_eid.to_u64(),
-                            token_id: Vec::from(event.token_id),
-                        });
-                    }
+    events.oapp_token_registered_externallies.append(
+        &mut blk
+            .receipts()
+            .flat_map(|view| {
+                view.receipt
+                    .logs
+                    .iter()
+                    .filter(|log| log.address == *oapp_tracked_contract)
+                    .filter_map(|log| {
+                        if let Some(event) =
+                            abi::oapp_contract::events::TokenRegisteredExternally::match_and_decode(
+                                log,
+                            )
+                        {
+                            return Some(contract::OappTokenRegisteredExternally {
+                                evt_tx_hash: Hex(&view.transaction.hash).to_string(),
+                                evt_index: log.block_index,
+                                evt_block_time: Some(blk.timestamp().to_owned()),
+                                evt_block_number: blk.number,
+                                dst_eid: event.dst_eid.to_u64(),
+                                operation_id: event.operation_id.to_u64(),
+                                src_eid: event.src_eid.to_u64(),
+                                token_id: Vec::from(event.token_id),
+                            });
+                        }
 
-                    None
-                })
-        })
-        .collect());
-    events.oapp_token_registration_acks.append(&mut blk
-        .receipts()
-        .flat_map(|view| {
-            view.receipt.logs.iter()
-                .filter(|log| log.address == *oapp_tracked_contract)
-                .filter_map(|log| {
-                    if let Some(event) = abi::oapp_contract::events::TokenRegistrationAck::match_and_decode(log) {
-                        return Some(contract::OappTokenRegistrationAck {
-                            evt_tx_hash: Hex(&view.transaction.hash).to_string(),
-                            evt_index: log.block_index,
-                            evt_block_time: Some(blk.timestamp().to_owned()),
-                            evt_block_number: blk.number,
-                            guid: Vec::from(event.guid),
-                            success: event.success,
-                        });
-                    }
+                        None
+                    })
+            })
+            .collect(),
+    );
+    events.oapp_token_registration_acks.append(
+        &mut blk
+            .receipts()
+            .flat_map(|view| {
+                view.receipt
+                    .logs
+                    .iter()
+                    .filter(|log| log.address == *oapp_tracked_contract)
+                    .filter_map(|log| {
+                        if let Some(event) =
+                            abi::oapp_contract::events::TokenRegistrationAck::match_and_decode(log)
+                        {
+                            return Some(contract::OappTokenRegistrationAck {
+                                evt_tx_hash: Hex(&view.transaction.hash).to_string(),
+                                evt_index: log.block_index,
+                                evt_block_time: Some(blk.timestamp().to_owned()),
+                                evt_block_number: blk.number,
+                                guid: Vec::from(event.guid),
+                                success: event.success,
+                            });
+                        }
 
-                    None
-                })
-        })
-        .collect());
+                        None
+                    })
+            })
+            .collect(),
+    );
     events.oapp_token_registration_ack_processeds.append(&mut blk
         .receipts()
         .flat_map(|view| {
@@ -1128,29 +1401,37 @@ fn map_oapp_events(blk: &eth::Block, oapp_tracked_contract: &[u8; 20], events: &
                 })
         })
         .collect());
-    events.oapp_token_registration_ack_sents.append(&mut blk
-        .receipts()
-        .flat_map(|view| {
-            view.receipt.logs.iter()
-                .filter(|log| log.address == *oapp_tracked_contract)
-                .filter_map(|log| {
-                    if let Some(event) = abi::oapp_contract::events::TokenRegistrationAckSent::match_and_decode(log) {
-                        return Some(contract::OappTokenRegistrationAckSent {
-                            evt_tx_hash: Hex(&view.transaction.hash).to_string(),
-                            evt_index: log.block_index,
-                            evt_block_time: Some(blk.timestamp().to_owned()),
-                            evt_block_number: blk.number,
-                            dst_eid: event.dst_eid.to_u64(),
-                            operation_id: event.operation_id.to_u64(),
-                            success: event.success,
-                            token_id: Vec::from(event.token_id),
-                        });
-                    }
+    events.oapp_token_registration_ack_sents.append(
+        &mut blk
+            .receipts()
+            .flat_map(|view| {
+                view.receipt
+                    .logs
+                    .iter()
+                    .filter(|log| log.address == *oapp_tracked_contract)
+                    .filter_map(|log| {
+                        if let Some(event) =
+                            abi::oapp_contract::events::TokenRegistrationAckSent::match_and_decode(
+                                log,
+                            )
+                        {
+                            return Some(contract::OappTokenRegistrationAckSent {
+                                evt_tx_hash: Hex(&view.transaction.hash).to_string(),
+                                evt_index: log.block_index,
+                                evt_block_time: Some(blk.timestamp().to_owned()),
+                                evt_block_number: blk.number,
+                                dst_eid: event.dst_eid.to_u64(),
+                                operation_id: event.operation_id.to_u64(),
+                                success: event.success,
+                                token_id: Vec::from(event.token_id),
+                            });
+                        }
 
-                    None
-                })
-        })
-        .collect());
+                        None
+                    })
+            })
+            .collect(),
+    );
     events.oapp_token_registration_initiateds.append(&mut blk
         .receipts()
         .flat_map(|view| {
@@ -1173,54 +1454,70 @@ fn map_oapp_events(blk: &eth::Block, oapp_tracked_contract: &[u8; 20], events: &
                 })
         })
         .collect());
-    events.oapp_token_registration_receiveds.append(&mut blk
-        .receipts()
-        .flat_map(|view| {
-            view.receipt.logs.iter()
-                .filter(|log| log.address == *oapp_tracked_contract)
-                .filter_map(|log| {
-                    if let Some(event) = abi::oapp_contract::events::TokenRegistrationReceived::match_and_decode(log) {
-                        return Some(contract::OappTokenRegistrationReceived {
-                            evt_tx_hash: Hex(&view.transaction.hash).to_string(),
-                            evt_index: log.block_index,
-                            evt_block_time: Some(blk.timestamp().to_owned()),
-                            evt_block_number: blk.number,
-                            operation_id: event.operation_id.to_u64(),
-                            source_token_address: Vec::from(event.source_token_address),
-                            src_eid: event.src_eid.to_u64(),
-                            token_id: Vec::from(event.token_id),
-                        });
-                    }
+    events.oapp_token_registration_receiveds.append(
+        &mut blk
+            .receipts()
+            .flat_map(|view| {
+                view.receipt
+                    .logs
+                    .iter()
+                    .filter(|log| log.address == *oapp_tracked_contract)
+                    .filter_map(|log| {
+                        if let Some(event) =
+                            abi::oapp_contract::events::TokenRegistrationReceived::match_and_decode(
+                                log,
+                            )
+                        {
+                            return Some(contract::OappTokenRegistrationReceived {
+                                evt_tx_hash: Hex(&view.transaction.hash).to_string(),
+                                evt_index: log.block_index,
+                                evt_block_time: Some(blk.timestamp().to_owned()),
+                                evt_block_number: blk.number,
+                                operation_id: event.operation_id.to_u64(),
+                                source_token_address: Vec::from(event.source_token_address),
+                                src_eid: event.src_eid.to_u64(),
+                                token_id: Vec::from(event.token_id),
+                            });
+                        }
 
-                    None
-                })
-        })
-        .collect());
+                        None
+                    })
+            })
+            .collect(),
+    );
 }
 fn map_manager_events(blk: &eth::Block, events: &mut contract::Events) {
-    events.manager_builder_activity_fee_sets.append(&mut blk
-        .receipts()
-        .flat_map(|view| {
-            view.receipt.logs.iter()
-                .filter(|log| log.address == MANAGER_TRACKED_CONTRACT)
-                .filter_map(|log| {
-                    if let Some(event) = abi::manager_contract::events::BuilderActivityFeeSet::match_and_decode(log) {
-                        return Some(contract::ManagerBuilderActivityFeeSet {
-                            evt_tx_hash: Hex(&view.transaction.hash).to_string(),
-                            evt_index: log.block_index,
-                            evt_block_time: Some(blk.timestamp().to_owned()),
-                            evt_block_number: blk.number,
-                            activity_id: Vec::from(event.activity_id),
-                            builder: event.builder,
-                            fee_percent: event.fee_percent.to_string(),
-                            flat_fee: event.flat_fee.to_string(),
-                        });
-                    }
+    events.manager_builder_activity_fee_sets.append(
+        &mut blk
+            .receipts()
+            .flat_map(|view| {
+                view.receipt
+                    .logs
+                    .iter()
+                    .filter(|log| log.address == MANAGER_TRACKED_CONTRACT)
+                    .filter_map(|log| {
+                        if let Some(event) =
+                            abi::manager_contract::events::BuilderActivityFeeSet::match_and_decode(
+                                log,
+                            )
+                        {
+                            return Some(contract::ManagerBuilderActivityFeeSet {
+                                evt_tx_hash: Hex(&view.transaction.hash).to_string(),
+                                evt_index: log.block_index,
+                                evt_block_time: Some(blk.timestamp().to_owned()),
+                                evt_block_number: blk.number,
+                                activity_id: Vec::from(event.activity_id),
+                                builder: event.builder,
+                                fee_percent: event.fee_percent.to_string(),
+                                flat_fee: event.flat_fee.to_string(),
+                            });
+                        }
 
-                    None
-                })
-        })
-        .collect());
+                        None
+                    })
+            })
+            .collect(),
+    );
     events.manager_external_whitelist_changeds.append(&mut blk
         .receipts()
         .flat_map(|view| {
@@ -1243,324 +1540,421 @@ fn map_manager_events(blk: &eth::Block, events: &mut contract::Events) {
                 })
         })
         .collect());
-    events.manager_fees_paids.append(&mut blk
-        .receipts()
-        .flat_map(|view| {
-            view.receipt.logs.iter()
-                .filter(|log| log.address == MANAGER_TRACKED_CONTRACT)
-                .filter_map(|log| {
-                    if let Some(event) = abi::manager_contract::events::FeesPaid::match_and_decode(log) {
-                        return Some(contract::ManagerFeesPaid {
-                            evt_tx_hash: Hex(&view.transaction.hash).to_string(),
-                            evt_index: log.block_index,
-                            evt_block_time: Some(blk.timestamp().to_owned()),
-                            evt_block_number: blk.number,
-                            activity_id: Vec::from(event.activity_id),
-                            builder: event.builder,
-                            builder_amount: event.builder_amount.to_string(),
-                            contract_address: event.contract_address,
-                            hub_amount: event.hub_amount.to_string(),
-                            hub_id: event.hub_id.to_string(),
-                            payment_token: event.payment_token,
-                            protocol_amount: event.protocol_amount.to_string(),
-                            sender: event.sender,
-                        });
-                    }
+    events.manager_fees_paids.append(
+        &mut blk
+            .receipts()
+            .flat_map(|view| {
+                view.receipt
+                    .logs
+                    .iter()
+                    .filter(|log| log.address == MANAGER_TRACKED_CONTRACT)
+                    .filter_map(|log| {
+                        if let Some(event) =
+                            abi::manager_contract::events::FeesPaid::match_and_decode(log)
+                        {
+                            return Some(contract::ManagerFeesPaid {
+                                evt_tx_hash: Hex(&view.transaction.hash).to_string(),
+                                evt_index: log.block_index,
+                                evt_block_time: Some(blk.timestamp().to_owned()),
+                                evt_block_number: blk.number,
+                                activity_id: Vec::from(event.activity_id),
+                                builder: event.builder,
+                                builder_amount: event.builder_amount.to_string(),
+                                contract_address: event.contract_address,
+                                hub_amount: event.hub_amount.to_string(),
+                                hub_id: event.hub_id.to_string(),
+                                payment_token: event.payment_token,
+                                protocol_amount: event.protocol_amount.to_string(),
+                                sender: event.sender,
+                            });
+                        }
 
-                    None
-                })
-        })
-        .collect());
-    events.manager_initializeds.append(&mut blk
-        .receipts()
-        .flat_map(|view| {
-            view.receipt.logs.iter()
-                .filter(|log| log.address == MANAGER_TRACKED_CONTRACT)
-                .filter_map(|log| {
-                    if let Some(event) = abi::manager_contract::events::Initialized::match_and_decode(log) {
-                        return Some(contract::ManagerInitialized {
-                            evt_tx_hash: Hex(&view.transaction.hash).to_string(),
-                            evt_index: log.block_index,
-                            evt_block_time: Some(blk.timestamp().to_owned()),
-                            evt_block_number: blk.number,
-                            version: event.version.to_u64(),
-                        });
-                    }
+                        None
+                    })
+            })
+            .collect(),
+    );
+    events.manager_initializeds.append(
+        &mut blk
+            .receipts()
+            .flat_map(|view| {
+                view.receipt
+                    .logs
+                    .iter()
+                    .filter(|log| log.address == MANAGER_TRACKED_CONTRACT)
+                    .filter_map(|log| {
+                        if let Some(event) =
+                            abi::manager_contract::events::Initialized::match_and_decode(log)
+                        {
+                            return Some(contract::ManagerInitialized {
+                                evt_tx_hash: Hex(&view.transaction.hash).to_string(),
+                                evt_index: log.block_index,
+                                evt_block_time: Some(blk.timestamp().to_owned()),
+                                evt_block_number: blk.number,
+                                version: event.version.to_u64(),
+                            });
+                        }
 
-                    None
-                })
-        })
-        .collect());
-    events.manager_ownership_transferreds.append(&mut blk
-        .receipts()
-        .flat_map(|view| {
-            view.receipt.logs.iter()
-                .filter(|log| log.address == MANAGER_TRACKED_CONTRACT)
-                .filter_map(|log| {
-                    if let Some(event) = abi::manager_contract::events::OwnershipTransferred::match_and_decode(log) {
-                        return Some(contract::ManagerOwnershipTransferred {
-                            evt_tx_hash: Hex(&view.transaction.hash).to_string(),
-                            evt_index: log.block_index,
-                            evt_block_time: Some(blk.timestamp().to_owned()),
-                            evt_block_number: blk.number,
-                            new_owner: event.new_owner,
-                            user: event.user,
-                        });
-                    }
+                        None
+                    })
+            })
+            .collect(),
+    );
+    events.manager_ownership_transferreds.append(
+        &mut blk
+            .receipts()
+            .flat_map(|view| {
+                view.receipt
+                    .logs
+                    .iter()
+                    .filter(|log| log.address == MANAGER_TRACKED_CONTRACT)
+                    .filter_map(|log| {
+                        if let Some(event) =
+                            abi::manager_contract::events::OwnershipTransferred::match_and_decode(
+                                log,
+                            )
+                        {
+                            return Some(contract::ManagerOwnershipTransferred {
+                                evt_tx_hash: Hex(&view.transaction.hash).to_string(),
+                                evt_index: log.block_index,
+                                evt_block_time: Some(blk.timestamp().to_owned()),
+                                evt_block_number: blk.number,
+                                new_owner: event.new_owner,
+                                user: event.user,
+                            });
+                        }
 
-                    None
-                })
-        })
-        .collect());
+                        None
+                    })
+            })
+            .collect(),
+    );
 }
 fn map_launchpad_events(
     blk: &eth::Block,
     token_id_to_address_store: &store::StoreGetString,
     events: &mut contract::Events,
 ) {
-    events.launchpad_buys.append(&mut blk
-        .receipts()
-        .flat_map(|view| {
-            view.receipt.logs.iter()
-                .filter(|log| log.address == LAUNCHPAD_TRACKED_CONTRACT)
-                .filter_map(|log| {
-                    if let Some(event) = abi::launchpad_contract::events::Buy::match_and_decode(log) {
-                        let token_id_key = format!("0x{}", Hex(&event.token_id).to_string());
-                        return Some(contract::LaunchpadBuy {
-                            evt_tx_hash: Hex(&view.transaction.hash).to_string(),
-                            evt_index: log.block_index,
-                            evt_block_time: Some(blk.timestamp().to_owned()),
-                            evt_block_number: blk.number,
-                            amount_in: event.amount_in.to_string(),
-                            liquidity_wei: event.liquidity_wei.to_string(),
-                            price: event.price.to_string(),
-                            receiver: event.receiver,
-                            supply: event.supply.to_string(),
-                            token_id: Vec::from(event.token_id),
-                            tokens_left: event.tokens_left.to_string(),
-                            tokens_out: event.tokens_out.to_string(),
-                            trader: event.trader,
-                            token_address: token_id_to_address_store.get_last(token_id_key).unwrap_or_default(),
-                        });
-                    }
+    events.launchpad_buys.append(
+        &mut blk
+            .receipts()
+            .flat_map(|view| {
+                view.receipt
+                    .logs
+                    .iter()
+                    .filter(|log| log.address == LAUNCHPAD_TRACKED_CONTRACT)
+                    .filter_map(|log| {
+                        if let Some(event) =
+                            abi::launchpad_contract::events::Buy::match_and_decode(log)
+                        {
+                            let token_id_key = format!("0x{}", Hex(&event.token_id).to_string());
+                            return Some(contract::LaunchpadBuy {
+                                evt_tx_hash: Hex(&view.transaction.hash).to_string(),
+                                evt_index: log.block_index,
+                                evt_block_time: Some(blk.timestamp().to_owned()),
+                                evt_block_number: blk.number,
+                                amount_in: event.amount_in.to_string(),
+                                liquidity_wei: event.liquidity_wei.to_string(),
+                                price: event.price.to_string(),
+                                receiver: event.receiver,
+                                supply: event.supply.to_string(),
+                                token_id: Vec::from(event.token_id),
+                                tokens_left: event.tokens_left.to_string(),
+                                tokens_out: event.tokens_out.to_string(),
+                                trader: event.trader,
+                                token_address: token_id_to_address_store
+                                    .get_last(token_id_key)
+                                    .unwrap_or_default(),
+                            });
+                        }
 
-                    None
-                })
-        })
-        .collect());
-    events.launchpad_new_pool_types.append(&mut blk
-        .receipts()
-        .flat_map(|view| {
-            view.receipt.logs.iter()
-                .filter(|log| log.address == LAUNCHPAD_TRACKED_CONTRACT)
-                .filter_map(|log| {
-                    if let Some(event) = abi::launchpad_contract::events::NewPoolType::match_and_decode(log) {
-                        return Some(contract::LaunchpadNewPoolType {
-                            evt_tx_hash: Hex(&view.transaction.hash).to_string(),
-                            evt_index: log.block_index,
-                            evt_block_time: Some(blk.timestamp().to_owned()),
-                            evt_block_number: blk.number,
-                            creator_reward: event.creator_reward.to_string(),
-                            initial_reserve_deposit_wad: event.initial_reserve_deposit_wad.to_string(),
-                            initial_token_deposit_wad: event.initial_token_deposit_wad.to_string(),
-                            migration_reserve_supply: event.migration_reserve_supply.to_string(),
-                            migration_supply: event.migration_supply.to_string(),
-                            migration_token_supply: event.migration_token_supply.to_string(),
-                            pool_type_id: event.pool_type_id.to_string(),
-                            price_at_migration_supply: event.price_at_migration_supply.to_string(),
-                            weight: event.weight.to_u64(),
-                        });
-                    }
+                        None
+                    })
+            })
+            .collect(),
+    );
+    events.launchpad_new_pool_types.append(
+        &mut blk
+            .receipts()
+            .flat_map(|view| {
+                view.receipt
+                    .logs
+                    .iter()
+                    .filter(|log| log.address == LAUNCHPAD_TRACKED_CONTRACT)
+                    .filter_map(|log| {
+                        if let Some(event) =
+                            abi::launchpad_contract::events::NewPoolType::match_and_decode(log)
+                        {
+                            return Some(contract::LaunchpadNewPoolType {
+                                evt_tx_hash: Hex(&view.transaction.hash).to_string(),
+                                evt_index: log.block_index,
+                                evt_block_time: Some(blk.timestamp().to_owned()),
+                                evt_block_number: blk.number,
+                                creator_reward: event.creator_reward.to_string(),
+                                initial_reserve_deposit_wad: event
+                                    .initial_reserve_deposit_wad
+                                    .to_string(),
+                                initial_token_deposit_wad: event
+                                    .initial_token_deposit_wad
+                                    .to_string(),
+                                migration_reserve_supply: event
+                                    .migration_reserve_supply
+                                    .to_string(),
+                                migration_supply: event.migration_supply.to_string(),
+                                migration_token_supply: event.migration_token_supply.to_string(),
+                                pool_type_id: event.pool_type_id.to_string(),
+                                price_at_migration_supply: event
+                                    .price_at_migration_supply
+                                    .to_string(),
+                                weight: event.weight.to_u64(),
+                            });
+                        }
 
-                    None
-                })
-        })
-        .collect());
-    events.launchpad_ownership_transferreds.append(&mut blk
-        .receipts()
-        .flat_map(|view| {
-            view.receipt.logs.iter()
-                .filter(|log| log.address == LAUNCHPAD_TRACKED_CONTRACT)
-                .filter_map(|log| {
-                    if let Some(event) = abi::launchpad_contract::events::OwnershipTransferred::match_and_decode(log) {
-                        return Some(contract::LaunchpadOwnershipTransferred {
-                            evt_tx_hash: Hex(&view.transaction.hash).to_string(),
-                            evt_index: log.block_index,
-                            evt_block_time: Some(blk.timestamp().to_owned()),
-                            evt_block_number: blk.number,
-                            new_owner: event.new_owner,
-                            user: event.user,
-                        });
-                    }
+                        None
+                    })
+            })
+            .collect(),
+    );
+    events.launchpad_ownership_transferreds.append(
+        &mut blk
+            .receipts()
+            .flat_map(|view| {
+                view.receipt
+                    .logs
+                    .iter()
+                    .filter(|log| log.address == LAUNCHPAD_TRACKED_CONTRACT)
+                    .filter_map(|log| {
+                        if let Some(event) =
+                            abi::launchpad_contract::events::OwnershipTransferred::match_and_decode(
+                                log,
+                            )
+                        {
+                            return Some(contract::LaunchpadOwnershipTransferred {
+                                evt_tx_hash: Hex(&view.transaction.hash).to_string(),
+                                evt_index: log.block_index,
+                                evt_block_time: Some(blk.timestamp().to_owned()),
+                                evt_block_number: blk.number,
+                                new_owner: event.new_owner,
+                                user: event.user,
+                            });
+                        }
 
-                    None
-                })
-        })
-        .collect());
-    events.launchpad_phase_expiry_config_sets.append(&mut blk
-        .receipts()
-        .flat_map(|view| {
-            view.receipt.logs.iter()
-                .filter(|log| log.address == LAUNCHPAD_TRACKED_CONTRACT)
-                .filter_map(|log| {
-                    if let Some(event) = abi::launchpad_contract::events::PhaseExpiryConfigSet::match_and_decode(log) {
-                        return Some(contract::LaunchpadPhaseExpiryConfigSet {
-                            evt_tx_hash: Hex(&view.transaction.hash).to_string(),
-                            evt_index: log.block_index,
-                            evt_block_time: Some(blk.timestamp().to_owned()),
-                            evt_block_number: blk.number,
-                            phase1_expiry_blocks: event.phase1_expiry_blocks.to_u64(),
-                            phase2_expiry_blocks: event.phase2_expiry_blocks.to_u64(),
-                        });
-                    }
+                        None
+                    })
+            })
+            .collect(),
+    );
+    events.launchpad_phase_expiry_config_sets.append(
+        &mut blk
+            .receipts()
+            .flat_map(|view| {
+                view.receipt
+                    .logs
+                    .iter()
+                    .filter(|log| log.address == LAUNCHPAD_TRACKED_CONTRACT)
+                    .filter_map(|log| {
+                        if let Some(event) =
+                            abi::launchpad_contract::events::PhaseExpiryConfigSet::match_and_decode(
+                                log,
+                            )
+                        {
+                            return Some(contract::LaunchpadPhaseExpiryConfigSet {
+                                evt_tx_hash: Hex(&view.transaction.hash).to_string(),
+                                evt_index: log.block_index,
+                                evt_block_time: Some(blk.timestamp().to_owned()),
+                                evt_block_number: blk.number,
+                                phase1_expiry_blocks: event.phase1_expiry_blocks.to_u64(),
+                                phase2_expiry_blocks: event.phase2_expiry_blocks.to_u64(),
+                            });
+                        }
 
-                    None
-                })
-        })
-        .collect());
-    events.launchpad_sells.append(&mut blk
-        .receipts()
-        .flat_map(|view| {
-            view.receipt.logs.iter()
-                .filter(|log| log.address == LAUNCHPAD_TRACKED_CONTRACT)
-                .filter_map(|log| {
-                    if let Some(event) = abi::launchpad_contract::events::Sell::match_and_decode(log) {
-                        let token_id_key = format!("0x{}", Hex(&event.token_id).to_string());
-                        return Some(contract::LaunchpadSell {
-                            evt_tx_hash: Hex(&view.transaction.hash).to_string(),
-                            evt_index: log.block_index,
-                            evt_block_time: Some(blk.timestamp().to_owned()),
-                            evt_block_number: blk.number,
-                            amount_out: event.amount_out.to_string(),
-                            liquidity_wei: event.liquidity_wei.to_string(),
-                            price: event.price.to_string(),
-                            supply: event.supply.to_string(),
-                            token_id: Vec::from(event.token_id),
-                            tokens_in: event.tokens_in.to_string(),
-                            tokens_left: event.tokens_left.to_string(),
-                            trader: event.trader,
-                            token_address: token_id_to_address_store.get_last(token_id_key).unwrap_or_default(),
-                        });
-                    }
+                        None
+                    })
+            })
+            .collect(),
+    );
+    events.launchpad_sells.append(
+        &mut blk
+            .receipts()
+            .flat_map(|view| {
+                view.receipt
+                    .logs
+                    .iter()
+                    .filter(|log| log.address == LAUNCHPAD_TRACKED_CONTRACT)
+                    .filter_map(|log| {
+                        if let Some(event) =
+                            abi::launchpad_contract::events::Sell::match_and_decode(log)
+                        {
+                            let token_id_key = format!("0x{}", Hex(&event.token_id).to_string());
+                            return Some(contract::LaunchpadSell {
+                                evt_tx_hash: Hex(&view.transaction.hash).to_string(),
+                                evt_index: log.block_index,
+                                evt_block_time: Some(blk.timestamp().to_owned()),
+                                evt_block_number: blk.number,
+                                amount_out: event.amount_out.to_string(),
+                                liquidity_wei: event.liquidity_wei.to_string(),
+                                price: event.price.to_string(),
+                                supply: event.supply.to_string(),
+                                token_id: Vec::from(event.token_id),
+                                tokens_in: event.tokens_in.to_string(),
+                                tokens_left: event.tokens_left.to_string(),
+                                trader: event.trader,
+                                token_address: token_id_to_address_store
+                                    .get_last(token_id_key)
+                                    .unwrap_or_default(),
+                            });
+                        }
 
-                    None
-                })
-        })
-        .collect());
-    events.launchpad_graduations.append(&mut blk
-        .receipts()
-        .flat_map(|view| {
-            view.receipt.logs.iter()
-                .filter(|log| log.address == LAUNCHPAD_TRACKED_CONTRACT)
-                .filter_map(|log| {
-                    if let Some((token_id, is_external, final_supply, final_reserves)) = decode_launchpad_graduation(log) {
-                        let token_id_key = format!("0x{}", Hex(&token_id).to_string());
-                        return Some(contract::LaunchpadGraduation {
-                            evt_tx_hash: Hex(&view.transaction.hash).to_string(),
-                            evt_index: log.block_index,
-                            evt_block_time: Some(blk.timestamp().to_owned()),
-                            evt_block_number: blk.number,
-                            token_id: token_id.clone(),
-                            token_address: token_id_to_address_store.get_last(token_id_key.clone()).unwrap_or_default(),
-                            is_external,
-                            final_supply,
-                            final_reserves,
-                            token_layer_id: token_id_key,
-                        });
-                    }
+                        None
+                    })
+            })
+            .collect(),
+    );
+    events.launchpad_graduations.append(
+        &mut blk
+            .receipts()
+            .flat_map(|view| {
+                view.receipt
+                    .logs
+                    .iter()
+                    .filter(|log| log.address == LAUNCHPAD_TRACKED_CONTRACT)
+                    .filter_map(|log| {
+                        if let Some((token_id, is_external, final_supply, final_reserves)) =
+                            decode_launchpad_graduation(log)
+                        {
+                            let token_id_key = format!("0x{}", Hex(&token_id).to_string());
+                            return Some(contract::LaunchpadGraduation {
+                                evt_tx_hash: Hex(&view.transaction.hash).to_string(),
+                                evt_index: log.block_index,
+                                evt_block_time: Some(blk.timestamp().to_owned()),
+                                evt_block_number: blk.number,
+                                token_address: token_id_to_address_store
+                                    .get_last(token_id_key.clone())
+                                    .unwrap_or_default(),
+                                is_external,
+                                final_supply,
+                                final_reserves,
+                                token_layer_id: token_id_key,
+                            });
+                        }
 
-                    None
-                })
-        })
-        .collect());
+                        None
+                    })
+            })
+            .collect(),
+    );
 }
 fn map_ip_events(blk: &eth::Block, events: &mut contract::Events) {
-    events.ip_approvals.append(&mut blk
-        .receipts()
-        .flat_map(|view| {
-            view.receipt.logs.iter()
-                .filter(|log| log.address == IP_TRACKED_CONTRACT)
-                .filter_map(|log| {
-                    if let Some(event) = abi::ip_contract::events::Approval::match_and_decode(log) {
-                        return Some(contract::IpApproval {
-                            evt_tx_hash: Hex(&view.transaction.hash).to_string(),
-                            evt_index: log.block_index,
-                            evt_block_time: Some(blk.timestamp().to_owned()),
-                            evt_block_number: blk.number,
-                            id: event.id.to_string(),
-                            owner: event.owner,
-                            spender: event.spender,
-                        });
-                    }
+    events.ip_approvals.append(
+        &mut blk
+            .receipts()
+            .flat_map(|view| {
+                view.receipt
+                    .logs
+                    .iter()
+                    .filter(|log| log.address == IP_TRACKED_CONTRACT)
+                    .filter_map(|log| {
+                        if let Some(event) =
+                            abi::ip_contract::events::Approval::match_and_decode(log)
+                        {
+                            return Some(contract::IpApproval {
+                                evt_tx_hash: Hex(&view.transaction.hash).to_string(),
+                                evt_index: log.block_index,
+                                evt_block_time: Some(blk.timestamp().to_owned()),
+                                evt_block_number: blk.number,
+                                id: event.id.to_string(),
+                                owner: event.owner,
+                                spender: event.spender,
+                            });
+                        }
 
-                    None
-                })
-        })
-        .collect());
-    events.ip_approval_for_alls.append(&mut blk
-        .receipts()
-        .flat_map(|view| {
-            view.receipt.logs.iter()
-                .filter(|log| log.address == IP_TRACKED_CONTRACT)
-                .filter_map(|log| {
-                    if let Some(event) = abi::ip_contract::events::ApprovalForAll::match_and_decode(log) {
-                        return Some(contract::IpApprovalForAll {
-                            evt_tx_hash: Hex(&view.transaction.hash).to_string(),
-                            evt_index: log.block_index,
-                            evt_block_time: Some(blk.timestamp().to_owned()),
-                            evt_block_number: blk.number,
-                            approved: event.approved,
-                            operator: event.operator,
-                            owner: event.owner,
-                        });
-                    }
+                        None
+                    })
+            })
+            .collect(),
+    );
+    events.ip_approval_for_alls.append(
+        &mut blk
+            .receipts()
+            .flat_map(|view| {
+                view.receipt
+                    .logs
+                    .iter()
+                    .filter(|log| log.address == IP_TRACKED_CONTRACT)
+                    .filter_map(|log| {
+                        if let Some(event) =
+                            abi::ip_contract::events::ApprovalForAll::match_and_decode(log)
+                        {
+                            return Some(contract::IpApprovalForAll {
+                                evt_tx_hash: Hex(&view.transaction.hash).to_string(),
+                                evt_index: log.block_index,
+                                evt_block_time: Some(blk.timestamp().to_owned()),
+                                evt_block_number: blk.number,
+                                approved: event.approved,
+                                operator: event.operator,
+                                owner: event.owner,
+                            });
+                        }
 
-                    None
-                })
-        })
-        .collect());
-    events.ip_manager_changeds.append(&mut blk
-        .receipts()
-        .flat_map(|view| {
-            view.receipt.logs.iter()
-                .filter(|log| log.address == IP_TRACKED_CONTRACT)
-                .filter_map(|log| {
-                    if let Some(event) = abi::ip_contract::events::ManagerChanged::match_and_decode(log) {
-                        return Some(contract::IpManagerChanged {
-                            evt_tx_hash: Hex(&view.transaction.hash).to_string(),
-                            evt_index: log.block_index,
-                            evt_block_time: Some(blk.timestamp().to_owned()),
-                            evt_block_number: blk.number,
-                            new_manager: event.new_manager,
-                        });
-                    }
+                        None
+                    })
+            })
+            .collect(),
+    );
+    events.ip_manager_changeds.append(
+        &mut blk
+            .receipts()
+            .flat_map(|view| {
+                view.receipt
+                    .logs
+                    .iter()
+                    .filter(|log| log.address == IP_TRACKED_CONTRACT)
+                    .filter_map(|log| {
+                        if let Some(event) =
+                            abi::ip_contract::events::ManagerChanged::match_and_decode(log)
+                        {
+                            return Some(contract::IpManagerChanged {
+                                evt_tx_hash: Hex(&view.transaction.hash).to_string(),
+                                evt_index: log.block_index,
+                                evt_block_time: Some(blk.timestamp().to_owned()),
+                                evt_block_number: blk.number,
+                                new_manager: event.new_manager,
+                            });
+                        }
 
-                    None
-                })
-        })
-        .collect());
-    events.ip_transfers.append(&mut blk
-        .receipts()
-        .flat_map(|view| {
-            view.receipt.logs.iter()
-                .filter(|log| log.address == IP_TRACKED_CONTRACT)
-                .filter_map(|log| {
-                    if let Some(event) = abi::ip_contract::events::Transfer::match_and_decode(log) {
-                        return Some(contract::IpTransfer {
-                            evt_tx_hash: Hex(&view.transaction.hash).to_string(),
-                            evt_index: log.block_index,
-                            evt_block_time: Some(blk.timestamp().to_owned()),
-                            evt_block_number: blk.number,
-                            from: event.from,
-                            id: event.id.to_string(),
-                            to: event.to,
-                        });
-                    }
+                        None
+                    })
+            })
+            .collect(),
+    );
+    events.ip_transfers.append(
+        &mut blk
+            .receipts()
+            .flat_map(|view| {
+                view.receipt
+                    .logs
+                    .iter()
+                    .filter(|log| log.address == IP_TRACKED_CONTRACT)
+                    .filter_map(|log| {
+                        if let Some(event) =
+                            abi::ip_contract::events::Transfer::match_and_decode(log)
+                        {
+                            return Some(contract::IpTransfer {
+                                evt_tx_hash: Hex(&view.transaction.hash).to_string(),
+                                evt_index: log.block_index,
+                                evt_block_time: Some(blk.timestamp().to_owned()),
+                                evt_block_number: blk.number,
+                                from: event.from,
+                                id: event.id.to_string(),
+                                to: event.to,
+                            });
+                        }
 
-                    None
-                })
-        })
-        .collect());
+                        None
+                    })
+            })
+            .collect(),
+    );
 }
 fn map_liquidity_mananager_events(blk: &eth::Block, events: &mut contract::Events) {
     events.liquidity_mananager_fees_collecteds.append(&mut blk
@@ -1753,29 +2147,37 @@ fn map_liquidity_mananager_events(blk: &eth::Block, events: &mut contract::Event
                 })
         })
         .collect());
-    events.liquidity_mananager_new_deposits.append(&mut blk
-        .receipts()
-        .flat_map(|view| {
-            view.receipt.logs.iter()
-                .filter(|log| log.address == LIQUIDITY_MANANAGER_TRACKED_CONTRACT)
-                .filter_map(|log| {
-                    if let Some(event) = abi::liquidity_mananager_contract::events::NewDeposit::match_and_decode(log) {
-                        return Some(contract::LiquidityMananagerNewDeposit {
-                            evt_tx_hash: Hex(&view.transaction.hash).to_string(),
-                            evt_index: log.block_index,
-                            evt_block_time: Some(blk.timestamp().to_owned()),
-                            evt_block_number: blk.number,
-                            liquidity: event.liquidity.to_string(),
-                            token0: event.token0,
-                            token1: event.token1,
-                            token_id: event.token_id.to_string(),
-                        });
-                    }
+    events.liquidity_mananager_new_deposits.append(
+        &mut blk
+            .receipts()
+            .flat_map(|view| {
+                view.receipt
+                    .logs
+                    .iter()
+                    .filter(|log| log.address == LIQUIDITY_MANANAGER_TRACKED_CONTRACT)
+                    .filter_map(|log| {
+                        if let Some(event) =
+                            abi::liquidity_mananager_contract::events::NewDeposit::match_and_decode(
+                                log,
+                            )
+                        {
+                            return Some(contract::LiquidityMananagerNewDeposit {
+                                evt_tx_hash: Hex(&view.transaction.hash).to_string(),
+                                evt_index: log.block_index,
+                                evt_block_time: Some(blk.timestamp().to_owned()),
+                                evt_block_number: blk.number,
+                                liquidity: event.liquidity.to_string(),
+                                token0: event.token0,
+                                token1: event.token1,
+                                token_id: event.token_id.to_string(),
+                            });
+                        }
 
-                    None
-                })
-        })
-        .collect());
+                        None
+                    })
+            })
+            .collect(),
+    );
     events.liquidity_mananager_ownership_transferreds.append(&mut blk
         .receipts()
         .flat_map(|view| {
@@ -1847,75 +2249,97 @@ fn map_liquidity_mananager_events(blk: &eth::Block, events: &mut contract::Event
                 })
         })
         .collect());
-    events.liquidity_mananager_upgradeds.append(&mut blk
-        .receipts()
-        .flat_map(|view| {
-            view.receipt.logs.iter()
-                .filter(|log| log.address == LIQUIDITY_MANANAGER_TRACKED_CONTRACT)
-                .filter_map(|log| {
-                    if let Some(event) = abi::liquidity_mananager_contract::events::Upgraded::match_and_decode(log) {
-                        return Some(contract::LiquidityMananagerUpgraded {
-                            evt_tx_hash: Hex(&view.transaction.hash).to_string(),
-                            evt_index: log.block_index,
-                            evt_block_time: Some(blk.timestamp().to_owned()),
-                            evt_block_number: blk.number,
-                            implementation: event.implementation,
-                        });
-                    }
+    events.liquidity_mananager_upgradeds.append(
+        &mut blk
+            .receipts()
+            .flat_map(|view| {
+                view.receipt
+                    .logs
+                    .iter()
+                    .filter(|log| log.address == LIQUIDITY_MANANAGER_TRACKED_CONTRACT)
+                    .filter_map(|log| {
+                        if let Some(event) =
+                            abi::liquidity_mananager_contract::events::Upgraded::match_and_decode(
+                                log,
+                            )
+                        {
+                            return Some(contract::LiquidityMananagerUpgraded {
+                                evt_tx_hash: Hex(&view.transaction.hash).to_string(),
+                                evt_index: log.block_index,
+                                evt_block_time: Some(blk.timestamp().to_owned()),
+                                evt_block_number: blk.number,
+                                implementation: event.implementation,
+                            });
+                        }
 
-                    None
-                })
-        })
-        .collect());
+                        None
+                    })
+            })
+            .collect(),
+    );
 }
 fn map_fees_events(blk: &eth::Block, events: &mut contract::Events) {
-    events.fees_fee_distributeds.append(&mut blk
-        .receipts()
-        .flat_map(|view| {
-            view.receipt.logs.iter()
-                .filter(|log| log.address == FEES_TRACKED_CONTRACT)
-                .filter_map(|log| {
-                    if let Some(event) = abi::fees_contract::events::FeeDistributed::match_and_decode(log) {
-                        return Some(contract::FeesFeeDistributed {
-                            evt_tx_hash: Hex(&view.transaction.hash).to_string(),
-                            evt_index: log.block_index,
-                            evt_block_time: Some(blk.timestamp().to_owned()),
-                            evt_block_number: blk.number,
-                            activity_id: event.activity_id.to_u64(),
-                            amount: event.amount.to_string(),
-                            currency: event.currency,
-                            distribution_type: event.distribution_type.to_u64(),
-                            recipient: event.recipient,
-                            tracking_id: Vec::from(event.tracking_id),
-                        });
-                    }
+    events.fees_fee_distributeds.append(
+        &mut blk
+            .receipts()
+            .flat_map(|view| {
+                view.receipt
+                    .logs
+                    .iter()
+                    .filter(|log| log.address == FEES_TRACKED_CONTRACT)
+                    .filter_map(|log| {
+                        if let Some(event) =
+                            abi::fees_contract::events::FeeDistributed::match_and_decode(log)
+                        {
+                            return Some(contract::FeesFeeDistributed {
+                                evt_tx_hash: Hex(&view.transaction.hash).to_string(),
+                                evt_index: log.block_index,
+                                evt_block_time: Some(blk.timestamp().to_owned()),
+                                evt_block_number: blk.number,
+                                activity_id: event.activity_id.to_u64(),
+                                amount: event.amount.to_string(),
+                                currency: event.currency,
+                                distribution_type: event.distribution_type.to_u64(),
+                                recipient: event.recipient,
+                                tracking_id: Vec::from(event.tracking_id),
+                            });
+                        }
 
-                    None
-                })
-        })
-        .collect());
-    events.fees_protocol_fee_distributeds.append(&mut blk
-        .receipts()
-        .flat_map(|view| {
-            view.receipt.logs.iter()
-                .filter(|log| log.address == FEES_TRACKED_CONTRACT)
-                .filter_map(|log| {
-                    if let Some(event) = abi::fees_contract::events::ProtocolFeeDistributed::match_and_decode(log) {
-                        return Some(contract::FeesProtocolFeeDistributed {
-                            evt_tx_hash: Hex(&view.transaction.hash).to_string(),
-                            evt_index: log.block_index,
-                            evt_block_time: Some(blk.timestamp().to_owned()),
-                            evt_block_number: blk.number,
-                            activity_id: event.activity_id.to_u64(),
-                            amount: event.amount.to_string(),
-                            currency: event.currency,
-                        });
-                    }
+                        None
+                    })
+            })
+            .collect(),
+    );
+    events.fees_protocol_fee_distributeds.append(
+        &mut blk
+            .receipts()
+            .flat_map(|view| {
+                view.receipt
+                    .logs
+                    .iter()
+                    .filter(|log| log.address == FEES_TRACKED_CONTRACT)
+                    .filter_map(|log| {
+                        if let Some(event) =
+                            abi::fees_contract::events::ProtocolFeeDistributed::match_and_decode(
+                                log,
+                            )
+                        {
+                            return Some(contract::FeesProtocolFeeDistributed {
+                                evt_tx_hash: Hex(&view.transaction.hash).to_string(),
+                                evt_index: log.block_index,
+                                evt_block_time: Some(blk.timestamp().to_owned()),
+                                evt_block_number: blk.number,
+                                activity_id: event.activity_id.to_u64(),
+                                amount: event.amount.to_string(),
+                                currency: event.currency,
+                            });
+                        }
 
-                    None
-                })
-        })
-        .collect());
+                        None
+                    })
+            })
+            .collect(),
+    );
     events.fees_protocol_fees_controller_updateds.append(&mut blk
         .receipts()
         .flat_map(|view| {
@@ -1937,342 +2361,432 @@ fn map_fees_events(blk: &eth::Block, events: &mut contract::Events) {
                 })
         })
         .collect());
-    events.fees_protocol_withdrawns.append(&mut blk
-        .receipts()
-        .flat_map(|view| {
-            view.receipt.logs.iter()
-                .filter(|log| log.address == FEES_TRACKED_CONTRACT)
-                .filter_map(|log| {
-                    if let Some(event) = abi::fees_contract::events::ProtocolWithdrawn::match_and_decode(log) {
-                        return Some(contract::FeesProtocolWithdrawn {
-                            evt_tx_hash: Hex(&view.transaction.hash).to_string(),
-                            evt_index: log.block_index,
-                            evt_block_time: Some(blk.timestamp().to_owned()),
-                            evt_block_number: blk.number,
-                            amount: event.amount.to_string(),
-                            currency: event.currency,
-                            to: event.to,
-                        });
-                    }
+    events.fees_protocol_withdrawns.append(
+        &mut blk
+            .receipts()
+            .flat_map(|view| {
+                view.receipt
+                    .logs
+                    .iter()
+                    .filter(|log| log.address == FEES_TRACKED_CONTRACT)
+                    .filter_map(|log| {
+                        if let Some(event) =
+                            abi::fees_contract::events::ProtocolWithdrawn::match_and_decode(log)
+                        {
+                            return Some(contract::FeesProtocolWithdrawn {
+                                evt_tx_hash: Hex(&view.transaction.hash).to_string(),
+                                evt_index: log.block_index,
+                                evt_block_time: Some(blk.timestamp().to_owned()),
+                                evt_block_number: blk.number,
+                                amount: event.amount.to_string(),
+                                currency: event.currency,
+                                to: event.to,
+                            });
+                        }
 
-                    None
-                })
-        })
-        .collect());
-    events.fees_withdrawns.append(&mut blk
-        .receipts()
-        .flat_map(|view| {
-            view.receipt.logs.iter()
-                .filter(|log| log.address == FEES_TRACKED_CONTRACT)
-                .filter_map(|log| {
-                    if let Some(event) = abi::fees_contract::events::Withdrawn::match_and_decode(log) {
-                        return Some(contract::FeesWithdrawn {
-                            evt_tx_hash: Hex(&view.transaction.hash).to_string(),
-                            evt_index: log.block_index,
-                            evt_block_time: Some(blk.timestamp().to_owned()),
-                            evt_block_number: blk.number,
-                            amount: event.amount.to_string(),
-                            currency: event.currency,
-                            recipient: event.recipient,
-                            to: event.to,
-                        });
-                    }
+                        None
+                    })
+            })
+            .collect(),
+    );
+    events.fees_withdrawns.append(
+        &mut blk
+            .receipts()
+            .flat_map(|view| {
+                view.receipt
+                    .logs
+                    .iter()
+                    .filter(|log| log.address == FEES_TRACKED_CONTRACT)
+                    .filter_map(|log| {
+                        if let Some(event) =
+                            abi::fees_contract::events::Withdrawn::match_and_decode(log)
+                        {
+                            return Some(contract::FeesWithdrawn {
+                                evt_tx_hash: Hex(&view.transaction.hash).to_string(),
+                                evt_index: log.block_index,
+                                evt_block_time: Some(blk.timestamp().to_owned()),
+                                evt_block_number: blk.number,
+                                amount: event.amount.to_string(),
+                                currency: event.currency,
+                                recipient: event.recipient,
+                                to: event.to,
+                            });
+                        }
 
-                    None
-                })
-        })
-        .collect());
+                        None
+                    })
+            })
+            .collect(),
+    );
 }
 fn map_roles_events(blk: &eth::Block, events: &mut contract::Events) {
-    events.roles_approvals.append(&mut blk
-        .receipts()
-        .flat_map(|view| {
-            view.receipt.logs.iter()
-                .filter(|log| log.address == ROLES_TRACKED_CONTRACT)
-                .filter_map(|log| {
-                    if let Some(event) = abi::roles_contract::events::Approval::match_and_decode(log) {
-                        return Some(contract::RolesApproval {
-                            evt_tx_hash: Hex(&view.transaction.hash).to_string(),
-                            evt_index: log.block_index,
-                            evt_block_time: Some(blk.timestamp().to_owned()),
-                            evt_block_number: blk.number,
-                            amount: event.amount.to_string(),
-                            id: event.id.to_string(),
-                            owner: event.owner,
-                            spender: event.spender,
-                        });
-                    }
+    events.roles_approvals.append(
+        &mut blk
+            .receipts()
+            .flat_map(|view| {
+                view.receipt
+                    .logs
+                    .iter()
+                    .filter(|log| log.address == ROLES_TRACKED_CONTRACT)
+                    .filter_map(|log| {
+                        if let Some(event) =
+                            abi::roles_contract::events::Approval::match_and_decode(log)
+                        {
+                            return Some(contract::RolesApproval {
+                                evt_tx_hash: Hex(&view.transaction.hash).to_string(),
+                                evt_index: log.block_index,
+                                evt_block_time: Some(blk.timestamp().to_owned()),
+                                evt_block_number: blk.number,
+                                amount: event.amount.to_string(),
+                                id: event.id.to_string(),
+                                owner: event.owner,
+                                spender: event.spender,
+                            });
+                        }
 
-                    None
-                })
-        })
-        .collect());
-    events.roles_ban_removeds.append(&mut blk
-        .receipts()
-        .flat_map(|view| {
-            view.receipt.logs.iter()
-                .filter(|log| log.address == ROLES_TRACKED_CONTRACT)
-                .filter_map(|log| {
-                    if let Some(event) = abi::roles_contract::events::BanRemoved::match_and_decode(log) {
-                        return Some(contract::RolesBanRemoved {
-                            evt_tx_hash: Hex(&view.transaction.hash).to_string(),
-                            evt_index: log.block_index,
-                            evt_block_time: Some(blk.timestamp().to_owned()),
-                            evt_block_number: blk.number,
-                            account: event.account,
-                            sender: event.sender,
-                            user: event.user,
-                        });
-                    }
+                        None
+                    })
+            })
+            .collect(),
+    );
+    events.roles_ban_removeds.append(
+        &mut blk
+            .receipts()
+            .flat_map(|view| {
+                view.receipt
+                    .logs
+                    .iter()
+                    .filter(|log| log.address == ROLES_TRACKED_CONTRACT)
+                    .filter_map(|log| {
+                        if let Some(event) =
+                            abi::roles_contract::events::BanRemoved::match_and_decode(log)
+                        {
+                            return Some(contract::RolesBanRemoved {
+                                evt_tx_hash: Hex(&view.transaction.hash).to_string(),
+                                evt_index: log.block_index,
+                                evt_block_time: Some(blk.timestamp().to_owned()),
+                                evt_block_number: blk.number,
+                                account: event.account,
+                                sender: event.sender,
+                                user: event.user,
+                            });
+                        }
 
-                    None
-                })
-        })
-        .collect());
-    events.roles_manager_changeds.append(&mut blk
-        .receipts()
-        .flat_map(|view| {
-            view.receipt.logs.iter()
-                .filter(|log| log.address == ROLES_TRACKED_CONTRACT)
-                .filter_map(|log| {
-                    if let Some(event) = abi::roles_contract::events::ManagerChanged::match_and_decode(log) {
-                        return Some(contract::RolesManagerChanged {
-                            evt_tx_hash: Hex(&view.transaction.hash).to_string(),
-                            evt_index: log.block_index,
-                            evt_block_time: Some(blk.timestamp().to_owned()),
-                            evt_block_number: blk.number,
-                            new_manager: event.new_manager,
-                        });
-                    }
+                        None
+                    })
+            })
+            .collect(),
+    );
+    events.roles_manager_changeds.append(
+        &mut blk
+            .receipts()
+            .flat_map(|view| {
+                view.receipt
+                    .logs
+                    .iter()
+                    .filter(|log| log.address == ROLES_TRACKED_CONTRACT)
+                    .filter_map(|log| {
+                        if let Some(event) =
+                            abi::roles_contract::events::ManagerChanged::match_and_decode(log)
+                        {
+                            return Some(contract::RolesManagerChanged {
+                                evt_tx_hash: Hex(&view.transaction.hash).to_string(),
+                                evt_index: log.block_index,
+                                evt_block_time: Some(blk.timestamp().to_owned()),
+                                evt_block_number: blk.number,
+                                new_manager: event.new_manager,
+                            });
+                        }
 
-                    None
-                })
-        })
-        .collect());
-    events.roles_ownership_transferreds.append(&mut blk
-        .receipts()
-        .flat_map(|view| {
-            view.receipt.logs.iter()
-                .filter(|log| log.address == ROLES_TRACKED_CONTRACT)
-                .filter_map(|log| {
-                    if let Some(event) = abi::roles_contract::events::OwnershipTransferred::match_and_decode(log) {
-                        return Some(contract::RolesOwnershipTransferred {
-                            evt_tx_hash: Hex(&view.transaction.hash).to_string(),
-                            evt_index: log.block_index,
-                            evt_block_time: Some(blk.timestamp().to_owned()),
-                            evt_block_number: blk.number,
-                            new_owner: event.new_owner,
-                            user: event.user,
-                        });
-                    }
+                        None
+                    })
+            })
+            .collect(),
+    );
+    events.roles_ownership_transferreds.append(
+        &mut blk
+            .receipts()
+            .flat_map(|view| {
+                view.receipt
+                    .logs
+                    .iter()
+                    .filter(|log| log.address == ROLES_TRACKED_CONTRACT)
+                    .filter_map(|log| {
+                        if let Some(event) =
+                            abi::roles_contract::events::OwnershipTransferred::match_and_decode(log)
+                        {
+                            return Some(contract::RolesOwnershipTransferred {
+                                evt_tx_hash: Hex(&view.transaction.hash).to_string(),
+                                evt_index: log.block_index,
+                                evt_block_time: Some(blk.timestamp().to_owned()),
+                                evt_block_number: blk.number,
+                                new_owner: event.new_owner,
+                                user: event.user,
+                            });
+                        }
 
-                    None
-                })
-        })
-        .collect());
-    events.roles_role_addeds.append(&mut blk
-        .receipts()
-        .flat_map(|view| {
-            view.receipt.logs.iter()
-                .filter(|log| log.address == ROLES_TRACKED_CONTRACT)
-                .filter_map(|log| {
-                    if let Some(event) = abi::roles_contract::events::RoleAdded::match_and_decode(log) {
-                        return Some(contract::RolesRoleAdded {
-                            evt_tx_hash: Hex(&view.transaction.hash).to_string(),
-                            evt_index: log.block_index,
-                            evt_block_time: Some(blk.timestamp().to_owned()),
-                            evt_block_number: blk.number,
-                            account: event.account,
-                            order_no: event.order_no.to_string(),
-                            role_id: event.role_id.to_string(),
-                        });
-                    }
+                        None
+                    })
+            })
+            .collect(),
+    );
+    events.roles_role_addeds.append(
+        &mut blk
+            .receipts()
+            .flat_map(|view| {
+                view.receipt
+                    .logs
+                    .iter()
+                    .filter(|log| log.address == ROLES_TRACKED_CONTRACT)
+                    .filter_map(|log| {
+                        if let Some(event) =
+                            abi::roles_contract::events::RoleAdded::match_and_decode(log)
+                        {
+                            return Some(contract::RolesRoleAdded {
+                                evt_tx_hash: Hex(&view.transaction.hash).to_string(),
+                                evt_index: log.block_index,
+                                evt_block_time: Some(blk.timestamp().to_owned()),
+                                evt_block_number: blk.number,
+                                account: event.account,
+                                order_no: event.order_no.to_string(),
+                                role_id: event.role_id.to_string(),
+                            });
+                        }
 
-                    None
-                })
-        })
-        .collect());
-    events.roles_role_createds.append(&mut blk
-        .receipts()
-        .flat_map(|view| {
-            view.receipt.logs.iter()
-                .filter(|log| log.address == ROLES_TRACKED_CONTRACT)
-                .filter_map(|log| {
-                    if let Some(event) = abi::roles_contract::events::RoleCreated::match_and_decode(log) {
-                        return Some(contract::RolesRoleCreated {
-                            evt_tx_hash: Hex(&view.transaction.hash).to_string(),
-                            evt_index: log.block_index,
-                            evt_block_time: Some(blk.timestamp().to_owned()),
-                            evt_block_number: blk.number,
-                            id: event.id.to_string(),
-                            name: event.name,
-                        });
-                    }
+                        None
+                    })
+            })
+            .collect(),
+    );
+    events.roles_role_createds.append(
+        &mut blk
+            .receipts()
+            .flat_map(|view| {
+                view.receipt
+                    .logs
+                    .iter()
+                    .filter(|log| log.address == ROLES_TRACKED_CONTRACT)
+                    .filter_map(|log| {
+                        if let Some(event) =
+                            abi::roles_contract::events::RoleCreated::match_and_decode(log)
+                        {
+                            return Some(contract::RolesRoleCreated {
+                                evt_tx_hash: Hex(&view.transaction.hash).to_string(),
+                                evt_index: log.block_index,
+                                evt_block_time: Some(blk.timestamp().to_owned()),
+                                evt_block_number: blk.number,
+                                id: event.id.to_string(),
+                                name: event.name,
+                            });
+                        }
 
-                    None
-                })
-        })
-        .collect());
-    events.roles_role_granteds.append(&mut blk
-        .receipts()
-        .flat_map(|view| {
-            view.receipt.logs.iter()
-                .filter(|log| log.address == ROLES_TRACKED_CONTRACT)
-                .filter_map(|log| {
-                    if let Some(event) = abi::roles_contract::events::RoleGranted::match_and_decode(log) {
-                        return Some(contract::RolesRoleGranted {
-                            evt_tx_hash: Hex(&view.transaction.hash).to_string(),
-                            evt_index: log.block_index,
-                            evt_block_time: Some(blk.timestamp().to_owned()),
-                            evt_block_number: blk.number,
-                            account: event.account,
-                            id: event.id.to_string(),
-                            role_name: event.role_name,
-                            sender: event.sender,
-                            user: event.user,
-                        });
-                    }
+                        None
+                    })
+            })
+            .collect(),
+    );
+    events.roles_role_granteds.append(
+        &mut blk
+            .receipts()
+            .flat_map(|view| {
+                view.receipt
+                    .logs
+                    .iter()
+                    .filter(|log| log.address == ROLES_TRACKED_CONTRACT)
+                    .filter_map(|log| {
+                        if let Some(event) =
+                            abi::roles_contract::events::RoleGranted::match_and_decode(log)
+                        {
+                            return Some(contract::RolesRoleGranted {
+                                evt_tx_hash: Hex(&view.transaction.hash).to_string(),
+                                evt_index: log.block_index,
+                                evt_block_time: Some(blk.timestamp().to_owned()),
+                                evt_block_number: blk.number,
+                                account: event.account,
+                                id: event.id.to_string(),
+                                role_name: event.role_name,
+                                sender: event.sender,
+                                user: event.user,
+                            });
+                        }
 
-                    None
-                })
-        })
-        .collect());
-    events.roles_role_order_updateds.append(&mut blk
-        .receipts()
-        .flat_map(|view| {
-            view.receipt.logs.iter()
-                .filter(|log| log.address == ROLES_TRACKED_CONTRACT)
-                .filter_map(|log| {
-                    if let Some(event) = abi::roles_contract::events::RoleOrderUpdated::match_and_decode(log) {
-                        return Some(contract::RolesRoleOrderUpdated {
-                            evt_tx_hash: Hex(&view.transaction.hash).to_string(),
-                            evt_index: log.block_index,
-                            evt_block_time: Some(blk.timestamp().to_owned()),
-                            evt_block_number: blk.number,
-                            account: event.account,
-                            order_no: event.order_no.to_string(),
-                            role_id: event.role_id.to_string(),
-                        });
-                    }
+                        None
+                    })
+            })
+            .collect(),
+    );
+    events.roles_role_order_updateds.append(
+        &mut blk
+            .receipts()
+            .flat_map(|view| {
+                view.receipt
+                    .logs
+                    .iter()
+                    .filter(|log| log.address == ROLES_TRACKED_CONTRACT)
+                    .filter_map(|log| {
+                        if let Some(event) =
+                            abi::roles_contract::events::RoleOrderUpdated::match_and_decode(log)
+                        {
+                            return Some(contract::RolesRoleOrderUpdated {
+                                evt_tx_hash: Hex(&view.transaction.hash).to_string(),
+                                evt_index: log.block_index,
+                                evt_block_time: Some(blk.timestamp().to_owned()),
+                                evt_block_number: blk.number,
+                                account: event.account,
+                                order_no: event.order_no.to_string(),
+                                role_id: event.role_id.to_string(),
+                            });
+                        }
 
-                    None
-                })
-        })
-        .collect());
-    events.roles_role_removeds.append(&mut blk
-        .receipts()
-        .flat_map(|view| {
-            view.receipt.logs.iter()
-                .filter(|log| log.address == ROLES_TRACKED_CONTRACT)
-                .filter_map(|log| {
-                    if let Some(event) = abi::roles_contract::events::RoleRemoved::match_and_decode(log) {
-                        return Some(contract::RolesRoleRemoved {
-                            evt_tx_hash: Hex(&view.transaction.hash).to_string(),
-                            evt_index: log.block_index,
-                            evt_block_time: Some(blk.timestamp().to_owned()),
-                            evt_block_number: blk.number,
-                            account: event.account,
-                            role_id: event.role_id.to_string(),
-                        });
-                    }
+                        None
+                    })
+            })
+            .collect(),
+    );
+    events.roles_role_removeds.append(
+        &mut blk
+            .receipts()
+            .flat_map(|view| {
+                view.receipt
+                    .logs
+                    .iter()
+                    .filter(|log| log.address == ROLES_TRACKED_CONTRACT)
+                    .filter_map(|log| {
+                        if let Some(event) =
+                            abi::roles_contract::events::RoleRemoved::match_and_decode(log)
+                        {
+                            return Some(contract::RolesRoleRemoved {
+                                evt_tx_hash: Hex(&view.transaction.hash).to_string(),
+                                evt_index: log.block_index,
+                                evt_block_time: Some(blk.timestamp().to_owned()),
+                                evt_block_number: blk.number,
+                                account: event.account,
+                                role_id: event.role_id.to_string(),
+                            });
+                        }
 
-                    None
-                })
-        })
-        .collect());
-    events.roles_role_renounceds.append(&mut blk
-        .receipts()
-        .flat_map(|view| {
-            view.receipt.logs.iter()
-                .filter(|log| log.address == ROLES_TRACKED_CONTRACT)
-                .filter_map(|log| {
-                    if let Some(event) = abi::roles_contract::events::RoleRenounced::match_and_decode(log) {
-                        return Some(contract::RolesRoleRenounced {
-                            evt_tx_hash: Hex(&view.transaction.hash).to_string(),
-                            evt_index: log.block_index,
-                            evt_block_time: Some(blk.timestamp().to_owned()),
-                            evt_block_number: blk.number,
-                            account: event.account,
-                            id: event.id.to_string(),
-                            sender: event.sender,
-                        });
-                    }
+                        None
+                    })
+            })
+            .collect(),
+    );
+    events.roles_role_renounceds.append(
+        &mut blk
+            .receipts()
+            .flat_map(|view| {
+                view.receipt
+                    .logs
+                    .iter()
+                    .filter(|log| log.address == ROLES_TRACKED_CONTRACT)
+                    .filter_map(|log| {
+                        if let Some(event) =
+                            abi::roles_contract::events::RoleRenounced::match_and_decode(log)
+                        {
+                            return Some(contract::RolesRoleRenounced {
+                                evt_tx_hash: Hex(&view.transaction.hash).to_string(),
+                                evt_index: log.block_index,
+                                evt_block_time: Some(blk.timestamp().to_owned()),
+                                evt_block_number: blk.number,
+                                account: event.account,
+                                id: event.id.to_string(),
+                                sender: event.sender,
+                            });
+                        }
 
-                    None
-                })
-        })
-        .collect());
-    events.roles_role_revokeds.append(&mut blk
-        .receipts()
-        .flat_map(|view| {
-            view.receipt.logs.iter()
-                .filter(|log| log.address == ROLES_TRACKED_CONTRACT)
-                .filter_map(|log| {
-                    if let Some(event) = abi::roles_contract::events::RoleRevoked::match_and_decode(log) {
-                        return Some(contract::RolesRoleRevoked {
-                            evt_tx_hash: Hex(&view.transaction.hash).to_string(),
-                            evt_index: log.block_index,
-                            evt_block_time: Some(blk.timestamp().to_owned()),
-                            evt_block_number: blk.number,
-                            account: event.account,
-                            id: event.id.to_string(),
-                            role_name: event.role_name,
-                            sender: event.sender,
-                            user: event.user,
-                        });
-                    }
+                        None
+                    })
+            })
+            .collect(),
+    );
+    events.roles_role_revokeds.append(
+        &mut blk
+            .receipts()
+            .flat_map(|view| {
+                view.receipt
+                    .logs
+                    .iter()
+                    .filter(|log| log.address == ROLES_TRACKED_CONTRACT)
+                    .filter_map(|log| {
+                        if let Some(event) =
+                            abi::roles_contract::events::RoleRevoked::match_and_decode(log)
+                        {
+                            return Some(contract::RolesRoleRevoked {
+                                evt_tx_hash: Hex(&view.transaction.hash).to_string(),
+                                evt_index: log.block_index,
+                                evt_block_time: Some(blk.timestamp().to_owned()),
+                                evt_block_number: blk.number,
+                                account: event.account,
+                                id: event.id.to_string(),
+                                role_name: event.role_name,
+                                sender: event.sender,
+                                user: event.user,
+                            });
+                        }
 
-                    None
-                })
-        })
-        .collect());
-    events.roles_transfers.append(&mut blk
-        .receipts()
-        .flat_map(|view| {
-            view.receipt.logs.iter()
-                .filter(|log| log.address == ROLES_TRACKED_CONTRACT)
-                .filter_map(|log| {
-                    if let Some(event) = abi::roles_contract::events::Transfer::match_and_decode(log) {
-                        return Some(contract::RolesTransfer {
-                            evt_tx_hash: Hex(&view.transaction.hash).to_string(),
-                            evt_index: log.block_index,
-                            evt_block_time: Some(blk.timestamp().to_owned()),
-                            evt_block_number: blk.number,
-                            amount: event.amount.to_string(),
-                            caller: event.caller,
-                            from: event.from,
-                            id: event.id.to_string(),
-                            to: event.to,
-                        });
-                    }
+                        None
+                    })
+            })
+            .collect(),
+    );
+    events.roles_transfers.append(
+        &mut blk
+            .receipts()
+            .flat_map(|view| {
+                view.receipt
+                    .logs
+                    .iter()
+                    .filter(|log| log.address == ROLES_TRACKED_CONTRACT)
+                    .filter_map(|log| {
+                        if let Some(event) =
+                            abi::roles_contract::events::Transfer::match_and_decode(log)
+                        {
+                            return Some(contract::RolesTransfer {
+                                evt_tx_hash: Hex(&view.transaction.hash).to_string(),
+                                evt_index: log.block_index,
+                                evt_block_time: Some(blk.timestamp().to_owned()),
+                                evt_block_number: blk.number,
+                                amount: event.amount.to_string(),
+                                caller: event.caller,
+                                from: event.from,
+                                id: event.id.to_string(),
+                                to: event.to,
+                            });
+                        }
 
-                    None
-                })
-        })
-        .collect());
-    events.roles_user_kickeds.append(&mut blk
-        .receipts()
-        .flat_map(|view| {
-            view.receipt.logs.iter()
-                .filter(|log| log.address == ROLES_TRACKED_CONTRACT)
-                .filter_map(|log| {
-                    if let Some(event) = abi::roles_contract::events::UserKicked::match_and_decode(log) {
-                        return Some(contract::RolesUserKicked {
-                            evt_tx_hash: Hex(&view.transaction.hash).to_string(),
-                            evt_index: log.block_index,
-                            evt_block_time: Some(blk.timestamp().to_owned()),
-                            evt_block_number: blk.number,
-                            account: event.account,
-                            deadline: event.deadline.to_string(),
-                            sender: event.sender,
-                            user: event.user,
-                        });
-                    }
+                        None
+                    })
+            })
+            .collect(),
+    );
+    events.roles_user_kickeds.append(
+        &mut blk
+            .receipts()
+            .flat_map(|view| {
+                view.receipt
+                    .logs
+                    .iter()
+                    .filter(|log| log.address == ROLES_TRACKED_CONTRACT)
+                    .filter_map(|log| {
+                        if let Some(event) =
+                            abi::roles_contract::events::UserKicked::match_and_decode(log)
+                        {
+                            return Some(contract::RolesUserKicked {
+                                evt_tx_hash: Hex(&view.transaction.hash).to_string(),
+                                evt_index: log.block_index,
+                                evt_block_time: Some(blk.timestamp().to_owned()),
+                                evt_block_number: blk.number,
+                                account: event.account,
+                                deadline: event.deadline.to_string(),
+                                sender: event.sender,
+                                user: event.user,
+                            });
+                        }
 
-                    None
-                })
-        })
-        .collect());
+                        None
+                    })
+            })
+            .collect(),
+    );
 }
 fn is_declared_dds_address(addr: &Vec<u8>, ordinal: u64, dds_store: &store::StoreGetInt64) -> bool {
     //    substreams::log::info!("Checking if address {} is declared dds address", Hex(addr).to_string());
@@ -2291,16 +2805,22 @@ fn tracked_token_addresses_created_in_block(blk: &eth::Block) -> HashSet<String>
             .iter()
             .filter(|log| log.address == REGISTRY_TRACKED_CONTRACT)
         {
-            if let Some(event) = abi::registry_contract::events::TokenCreated::match_and_decode(log) {
+            if let Some(event) = abi::registry_contract::events::TokenCreated::match_and_decode(log)
+            {
                 tracked.insert(Hex(event.token_address).to_string());
             }
-            if let Some(event) = abi::registry_contract::events::CoinCreated::match_and_decode(log) {
+            if let Some(event) = abi::registry_contract::events::CoinCreated::match_and_decode(log)
+            {
                 tracked.insert(Hex(event.coin_address).to_string());
             }
-            if let Some(event) = abi::registry_contract::events::ExternalTokenCreated::match_and_decode(log) {
+            if let Some(event) =
+                abi::registry_contract::events::ExternalTokenCreated::match_and_decode(log)
+            {
                 tracked.insert(Hex(event.token_address).to_string());
             }
-            if let Some(event) = abi::registry_contract::events::TokenRegistered::match_and_decode(log) {
+            if let Some(event) =
+                abi::registry_contract::events::TokenRegistered::match_and_decode(log)
+            {
                 tracked.insert(Hex(event.token_address).to_string());
             }
         }
@@ -2323,7 +2843,11 @@ fn is_zero_address(addr: &[u8]) -> bool {
 }
 
 fn balance_store_key(token_address: &Vec<u8>, wallet: &Vec<u8>) -> String {
-    format!("{}:{}", Hex(token_address).to_string(), Hex(wallet).to_string())
+    format!(
+        "{}:{}",
+        Hex(token_address).to_string(),
+        Hex(wallet).to_string()
+    )
 }
 
 fn user_fee_balance_store_key(account: &Vec<u8>, currency: &Vec<u8>) -> String {
@@ -2334,7 +2858,10 @@ fn protocol_fee_balance_store_key(currency: &Vec<u8>) -> String {
     Hex(currency).to_string()
 }
 
-fn token_layer_id_from_token_address(token_id_to_address_store: &store::StoreGetString, token_address: &str) -> String {
+fn token_layer_id_from_token_address(
+    token_id_to_address_store: &store::StoreGetString,
+    token_address: &str,
+) -> String {
     token_id_to_address_store
         .get_last(format!("addr:{}", token_address.to_lowercase()))
         .unwrap_or_default()
@@ -2351,7 +2878,9 @@ fn decode_i24_topic(topic: &[u8]) -> Option<i32> {
     Some(raw)
 }
 
-fn decode_uniswap_v3_mint(log: &eth::Log) -> Option<(Vec<u8>, Vec<u8>, i32, i32, String, String, String)> {
+fn decode_uniswap_v3_mint(
+    log: &eth::Log,
+) -> Option<(Vec<u8>, Vec<u8>, i32, i32, String, String, String)> {
     if log.topics.len() != 4 || log.data.len() != 128 {
         return None;
     }
@@ -2379,7 +2908,9 @@ fn decode_uniswap_v3_mint(log: &eth::Log) -> Option<(Vec<u8>, Vec<u8>, i32, i32,
     let amount0 = values.get(2)?.clone().into_uint()?.to_string();
     let amount1 = values.get(3)?.clone().into_uint()?.to_string();
 
-    Some((owner, sender, tick_lower, tick_upper, amount, amount0, amount1))
+    Some((
+        owner, sender, tick_lower, tick_upper, amount, amount0, amount1,
+    ))
 }
 
 fn decode_uniswap_v3_burn(log: &eth::Log) -> Option<(Vec<u8>, i32, i32, String, String, String)> {
@@ -2438,7 +2969,8 @@ fn decode_launchpad_graduation(log: &eth::Log) -> Option<(Vec<u8>, bool, String,
 }
 
 fn parse_big_int_or_zero(input: &str) -> substreams::scalar::BigInt {
-    substreams::scalar::BigInt::from_str(input).unwrap_or_else(|_| substreams::scalar::BigInt::from(0))
+    substreams::scalar::BigInt::from_str(input)
+        .unwrap_or_else(|_| substreams::scalar::BigInt::from(0))
 }
 
 fn decimal_to_string_max_18(value: &substreams::scalar::BigDecimal) -> String {
@@ -2463,6 +2995,35 @@ fn decimal_to_string_max_18(value: &substreams::scalar::BigDecimal) -> String {
 fn parse_big_decimal_or_zero(input: &str) -> substreams::scalar::BigDecimal {
     substreams::scalar::BigDecimal::from_str(input)
         .unwrap_or_else(|_| substreams::scalar::BigDecimal::from(0))
+}
+
+fn pow10_decimal(exp: u64) -> substreams::scalar::BigDecimal {
+    substreams::scalar::BigInt::from(10)
+        .pow(exp as u32)
+        .to_decimal(0)
+}
+
+fn uniswap_v3_spot_price_from_sqrt_price_x96(
+    sqrt_price_x96: &str,
+    token0_decimals: u64,
+    token1_decimals: u64,
+) -> Option<substreams::scalar::BigDecimal> {
+    let sqrt_price = parse_big_int_or_zero(sqrt_price_x96);
+    if sqrt_price.is_zero() {
+        return None;
+    }
+
+    let price_num = (sqrt_price.clone() * sqrt_price).to_decimal(0);
+    let price_den = substreams::scalar::BigInt::from(2).pow(192).to_decimal(0);
+    let mut price = price_num / price_den;
+
+    if token0_decimals > token1_decimals {
+        price = price * pow10_decimal(token0_decimals - token1_decimals);
+    } else if token1_decimals > token0_decimals {
+        price = price / pow10_decimal(token1_decimals - token0_decimals);
+    }
+
+    Some(price)
 }
 
 fn candle_bucket_start(ts: &prost_types::Timestamp) -> prost_types::Timestamp {
@@ -2493,7 +3054,8 @@ fn candle_store_touched_keys(events: &contract::Events) -> HashMap<String, Strin
         };
         let bucket = candle_bucket_start(ts);
         let key = candle_store_key(&trade.token_layer_id, &bucket);
-        out.entry(key).or_insert_with(|| trade.token_address.clone());
+        out.entry(key)
+            .or_insert_with(|| trade.token_address.clone());
     }
     out
 }
@@ -2510,158 +3072,255 @@ fn map_token_coin_events(
     created_in_block: &HashSet<String>,
     events: &mut contract::Events,
 ) {
+    events.token_coin_approvals.append(
+        &mut blk
+            .receipts()
+            .flat_map(|view| {
+                view.receipt
+                    .logs
+                    .iter()
+                    .filter(|log| {
+                        is_tracked_token_address(
+                            &log.address,
+                            log.ordinal,
+                            dds_store,
+                            created_in_block,
+                        )
+                    })
+                    .filter_map(|log| {
+                        if let Some(event) =
+                            abi::token_coin_contract::events::Approval::match_and_decode(log)
+                        {
+                            let token_address = format!("0x{}", Hex(&log.address).to_string());
+                            return Some(contract::TokenCoinApproval {
+                                evt_tx_hash: Hex(&view.transaction.hash).to_string(),
+                                evt_index: log.block_index,
+                                evt_block_time: Some(blk.timestamp().to_owned()),
+                                evt_block_number: blk.number,
+                                token_address: token_address.clone(),
+                                amount: event.amount.to_string(),
+                                owner: event.owner,
+                                spender: event.spender,
+                                token_layer_id: token_layer_id_from_token_address(
+                                    token_id_to_address_store,
+                                    &token_address,
+                                ),
+                            });
+                        }
 
-    events.token_coin_approvals.append(&mut blk
-        .receipts()
-        .flat_map(|view| {
-            view.receipt.logs.iter()
-                .filter(|log| is_tracked_token_address(&log.address, log.ordinal, dds_store, created_in_block))
-                .filter_map(|log| {
-                    if let Some(event) = abi::token_coin_contract::events::Approval::match_and_decode(log) {
-                        let token_address = format!("0x{}", Hex(&log.address).to_string());
-                        return Some(contract::TokenCoinApproval {
-                            evt_tx_hash: Hex(&view.transaction.hash).to_string(),
-                            evt_index: log.block_index,
-                            evt_block_time: Some(blk.timestamp().to_owned()),
-                            evt_block_number: blk.number,
-                            token_address: token_address.clone(),
-                            amount: event.amount.to_string(),
-                            owner: event.owner,
-                            spender: event.spender,
-                            token_layer_id: token_layer_id_from_token_address(token_id_to_address_store, &token_address),
-                        });
-                    }
+                        None
+                    })
+            })
+            .collect(),
+    );
 
-                    None
-                })
-        })
-        .collect());
+    events.token_coin_enforced_option_sets.append(
+        &mut blk
+            .receipts()
+            .flat_map(|view| {
+                view.receipt
+                    .logs
+                    .iter()
+                    .filter(|log| {
+                        is_tracked_token_address(
+                            &log.address,
+                            log.ordinal,
+                            dds_store,
+                            created_in_block,
+                        )
+                    })
+                    .filter_map(|log| {
+                        if let Some(event) =
+                            abi::token_coin_contract::events::EnforcedOptionSet::match_and_decode(
+                                log,
+                            )
+                        {
+                            let token_address = format!("0x{}", Hex(&log.address).to_string());
+                            return Some(contract::TokenCoinEnforcedOptionSet {
+                                evt_tx_hash: Hex(&view.transaction.hash).to_string(),
+                                evt_index: log.block_index,
+                                evt_block_time: Some(blk.timestamp().to_owned()),
+                                evt_block_number: blk.number,
+                                token_address: token_address.clone(),
+                                token_layer_id: token_layer_id_from_token_address(
+                                    token_id_to_address_store,
+                                    &token_address,
+                                ),
+                            });
+                        }
 
-    events.token_coin_enforced_option_sets.append(&mut blk
-        .receipts()
-        .flat_map(|view| {
-            view.receipt.logs.iter()
-                .filter(|log| is_tracked_token_address(&log.address, log.ordinal, dds_store, created_in_block))
-                .filter_map(|log| {
-                    if let Some(event) = abi::token_coin_contract::events::EnforcedOptionSet::match_and_decode(log) {
-                        let token_address = format!("0x{}", Hex(&log.address).to_string());
-                        return Some(contract::TokenCoinEnforcedOptionSet {
-                            evt_tx_hash: Hex(&view.transaction.hash).to_string(),
-                            evt_index: log.block_index,
-                            evt_block_time: Some(blk.timestamp().to_owned()),
-                            evt_block_number: blk.number,
-                            token_address: token_address.clone(),
-                            token_layer_id: token_layer_id_from_token_address(token_id_to_address_store, &token_address),
-                        });
-                    }
+                        None
+                    })
+            })
+            .collect(),
+    );
 
-                    None
-                })
-        })
-        .collect());
+    events.token_coin_initializeds.append(
+        &mut blk
+            .receipts()
+            .flat_map(|view| {
+                view.receipt
+                    .logs
+                    .iter()
+                    .filter(|log| {
+                        is_tracked_token_address(
+                            &log.address,
+                            log.ordinal,
+                            dds_store,
+                            created_in_block,
+                        )
+                    })
+                    .filter_map(|log| {
+                        if let Some(event) =
+                            abi::token_coin_contract::events::Initialized::match_and_decode(log)
+                        {
+                            let token_address = format!("0x{}", Hex(&log.address).to_string());
+                            return Some(contract::TokenCoinInitialized {
+                                evt_tx_hash: Hex(&view.transaction.hash).to_string(),
+                                evt_index: log.block_index,
+                                evt_block_time: Some(blk.timestamp().to_owned()),
+                                evt_block_number: blk.number,
+                                token_address: token_address.clone(),
+                                version: event.version.to_u64(),
+                                token_layer_id: token_layer_id_from_token_address(
+                                    token_id_to_address_store,
+                                    &token_address,
+                                ),
+                            });
+                        }
 
-    events.token_coin_initializeds.append(&mut blk
-        .receipts()
-        .flat_map(|view| {
-            view.receipt.logs.iter()
-                .filter(|log| is_tracked_token_address(&log.address, log.ordinal, dds_store, created_in_block))
-                .filter_map(|log| {
-                    if let Some(event) = abi::token_coin_contract::events::Initialized::match_and_decode(log) {
-                        let token_address = format!("0x{}", Hex(&log.address).to_string());
-                        return Some(contract::TokenCoinInitialized {
-                            evt_tx_hash: Hex(&view.transaction.hash).to_string(),
-                            evt_index: log.block_index,
-                            evt_block_time: Some(blk.timestamp().to_owned()),
-                            evt_block_number: blk.number,
-                            token_address: token_address.clone(),
-                            version: event.version.to_u64(),
-                            token_layer_id: token_layer_id_from_token_address(token_id_to_address_store, &token_address),
-                        });
-                    }
+                        None
+                    })
+            })
+            .collect(),
+    );
 
-                    None
-                })
-        })
-        .collect());
+    events.token_coin_msg_inspector_sets.append(
+        &mut blk
+            .receipts()
+            .flat_map(|view| {
+                view.receipt
+                    .logs
+                    .iter()
+                    .filter(|log| {
+                        is_tracked_token_address(
+                            &log.address,
+                            log.ordinal,
+                            dds_store,
+                            created_in_block,
+                        )
+                    })
+                    .filter_map(|log| {
+                        if let Some(event) =
+                            abi::token_coin_contract::events::MsgInspectorSet::match_and_decode(log)
+                        {
+                            let token_address = format!("0x{}", Hex(&log.address).to_string());
+                            return Some(contract::TokenCoinMsgInspectorSet {
+                                evt_tx_hash: Hex(&view.transaction.hash).to_string(),
+                                evt_index: log.block_index,
+                                evt_block_time: Some(blk.timestamp().to_owned()),
+                                evt_block_number: blk.number,
+                                token_address: token_address.clone(),
+                                inspector: event.inspector,
+                                token_layer_id: token_layer_id_from_token_address(
+                                    token_id_to_address_store,
+                                    &token_address,
+                                ),
+                            });
+                        }
 
-    events.token_coin_msg_inspector_sets.append(&mut blk
-        .receipts()
-        .flat_map(|view| {
-            view.receipt.logs.iter()
-                .filter(|log| is_tracked_token_address(&log.address, log.ordinal, dds_store, created_in_block))
-                .filter_map(|log| {
-                    if let Some(event) = abi::token_coin_contract::events::MsgInspectorSet::match_and_decode(log) {
-                        let token_address = format!("0x{}", Hex(&log.address).to_string());
-                        return Some(contract::TokenCoinMsgInspectorSet {
-                            evt_tx_hash: Hex(&view.transaction.hash).to_string(),
-                            evt_index: log.block_index,
-                            evt_block_time: Some(blk.timestamp().to_owned()),
-                            evt_block_number: blk.number,
-                            token_address: token_address.clone(),
-                            inspector: event.inspector,
-                            token_layer_id: token_layer_id_from_token_address(token_id_to_address_store, &token_address),
-                        });
-                    }
+                        None
+                    })
+            })
+            .collect(),
+    );
 
-                    None
-                })
-        })
-        .collect());
+    events.token_coin_oft_receiveds.append(
+        &mut blk
+            .receipts()
+            .flat_map(|view| {
+                view.receipt
+                    .logs
+                    .iter()
+                    .filter(|log| {
+                        is_tracked_token_address(
+                            &log.address,
+                            log.ordinal,
+                            dds_store,
+                            created_in_block,
+                        )
+                    })
+                    .filter_map(|log| {
+                        if let Some(event) =
+                            abi::token_coin_contract::events::OftReceived::match_and_decode(log)
+                        {
+                            let token_address = format!("0x{}", Hex(&log.address).to_string());
+                            return Some(contract::TokenCoinOftReceived {
+                                evt_tx_hash: Hex(&view.transaction.hash).to_string(),
+                                evt_index: log.block_index,
+                                evt_block_time: Some(blk.timestamp().to_owned()),
+                                evt_block_number: blk.number,
+                                token_address: token_address.clone(),
+                                amount_received_ld: event.amount_received_ld.to_string(),
+                                guid: Vec::from(event.guid),
+                                src_eid: event.src_eid.to_u64(),
+                                to_address: event.to_address,
+                                token_layer_id: token_layer_id_from_token_address(
+                                    token_id_to_address_store,
+                                    &token_address,
+                                ),
+                            });
+                        }
 
-    events.token_coin_oft_receiveds.append(&mut blk
-        .receipts()
-        .flat_map(|view| {
-            view.receipt.logs.iter()
-                .filter(|log| is_tracked_token_address(&log.address, log.ordinal, dds_store, created_in_block))
-                .filter_map(|log| {
-                    if let Some(event) = abi::token_coin_contract::events::OftReceived::match_and_decode(log) {
-                        let token_address = format!("0x{}", Hex(&log.address).to_string());
-                        return Some(contract::TokenCoinOftReceived {
-                            evt_tx_hash: Hex(&view.transaction.hash).to_string(),
-                            evt_index: log.block_index,
-                            evt_block_time: Some(blk.timestamp().to_owned()),
-                            evt_block_number: blk.number,
-                            token_address: token_address.clone(),
-                            amount_received_ld: event.amount_received_ld.to_string(),
-                            guid: Vec::from(event.guid),
-                            src_eid: event.src_eid.to_u64(),
-                            to_address: event.to_address,
-                            token_layer_id: token_layer_id_from_token_address(token_id_to_address_store, &token_address),
-                        });
-                    }
+                        None
+                    })
+            })
+            .collect(),
+    );
 
-                    None
-                })
-        })
-        .collect());
+    events.token_coin_oft_sents.append(
+        &mut blk
+            .receipts()
+            .flat_map(|view| {
+                view.receipt
+                    .logs
+                    .iter()
+                    .filter(|log| {
+                        is_tracked_token_address(
+                            &log.address,
+                            log.ordinal,
+                            dds_store,
+                            created_in_block,
+                        )
+                    })
+                    .filter_map(|log| {
+                        if let Some(event) =
+                            abi::token_coin_contract::events::OftSent::match_and_decode(log)
+                        {
+                            let token_address = format!("0x{}", Hex(&log.address).to_string());
+                            return Some(contract::TokenCoinOftSent {
+                                evt_tx_hash: Hex(&view.transaction.hash).to_string(),
+                                evt_index: log.block_index,
+                                evt_block_time: Some(blk.timestamp().to_owned()),
+                                evt_block_number: blk.number,
+                                token_address: token_address.clone(),
+                                amount_received_ld: event.amount_received_ld.to_string(),
+                                amount_sent_ld: event.amount_sent_ld.to_string(),
+                                dst_eid: event.dst_eid.to_u64(),
+                                from_address: event.from_address,
+                                guid: Vec::from(event.guid),
+                                token_layer_id: token_layer_id_from_token_address(
+                                    token_id_to_address_store,
+                                    &token_address,
+                                ),
+                            });
+                        }
 
-    events.token_coin_oft_sents.append(&mut blk
-        .receipts()
-        .flat_map(|view| {
-            view.receipt.logs.iter()
-                .filter(|log| is_tracked_token_address(&log.address, log.ordinal, dds_store, created_in_block))
-                .filter_map(|log| {
-                    if let Some(event) = abi::token_coin_contract::events::OftSent::match_and_decode(log) {
-                        let token_address = format!("0x{}", Hex(&log.address).to_string());
-                        return Some(contract::TokenCoinOftSent {
-                            evt_tx_hash: Hex(&view.transaction.hash).to_string(),
-                            evt_index: log.block_index,
-                            evt_block_time: Some(blk.timestamp().to_owned()),
-                            evt_block_number: blk.number,
-                            token_address: token_address.clone(),
-                            amount_received_ld: event.amount_received_ld.to_string(),
-                            amount_sent_ld: event.amount_sent_ld.to_string(),
-                            dst_eid: event.dst_eid.to_u64(),
-                            from_address: event.from_address,
-                            guid: Vec::from(event.guid),
-                            token_layer_id: token_layer_id_from_token_address(token_id_to_address_store, &token_address),
-                        });
-                    }
-
-                    None
-                })
-        })
-        .collect());
+                        None
+                    })
+            })
+            .collect(),
+    );
 
     events.token_coin_ownership_transferreds.append(&mut blk
         .receipts()
@@ -2688,80 +3347,128 @@ fn map_token_coin_events(
         })
         .collect());
 
-    events.token_coin_peer_sets.append(&mut blk
-        .receipts()
-        .flat_map(|view| {
-            view.receipt.logs.iter()
-                .filter(|log| is_tracked_token_address(&log.address, log.ordinal, dds_store, created_in_block))
-                .filter_map(|log| {
-                    if let Some(event) = abi::token_coin_contract::events::PeerSet::match_and_decode(log) {
-                        let token_address = format!("0x{}", Hex(&log.address).to_string());
-                        return Some(contract::TokenCoinPeerSet {
-                            evt_tx_hash: Hex(&view.transaction.hash).to_string(),
-                            evt_index: log.block_index,
-                            evt_block_time: Some(blk.timestamp().to_owned()),
-                            evt_block_number: blk.number,
-                            token_address: token_address.clone(),
-                            eid: event.eid.to_u64(),
-                            peer: Vec::from(event.peer),
-                            token_layer_id: token_layer_id_from_token_address(token_id_to_address_store, &token_address),
-                        });
-                    }
+    events.token_coin_peer_sets.append(
+        &mut blk
+            .receipts()
+            .flat_map(|view| {
+                view.receipt
+                    .logs
+                    .iter()
+                    .filter(|log| {
+                        is_tracked_token_address(
+                            &log.address,
+                            log.ordinal,
+                            dds_store,
+                            created_in_block,
+                        )
+                    })
+                    .filter_map(|log| {
+                        if let Some(event) =
+                            abi::token_coin_contract::events::PeerSet::match_and_decode(log)
+                        {
+                            let token_address = format!("0x{}", Hex(&log.address).to_string());
+                            return Some(contract::TokenCoinPeerSet {
+                                evt_tx_hash: Hex(&view.transaction.hash).to_string(),
+                                evt_index: log.block_index,
+                                evt_block_time: Some(blk.timestamp().to_owned()),
+                                evt_block_number: blk.number,
+                                token_address: token_address.clone(),
+                                eid: event.eid.to_u64(),
+                                peer: Vec::from(event.peer),
+                                token_layer_id: token_layer_id_from_token_address(
+                                    token_id_to_address_store,
+                                    &token_address,
+                                ),
+                            });
+                        }
 
-                    None
-                })
-        })
-        .collect());
+                        None
+                    })
+            })
+            .collect(),
+    );
 
-    events.token_coin_pre_crime_sets.append(&mut blk
-        .receipts()
-        .flat_map(|view| {
-            view.receipt.logs.iter()
-                .filter(|log| is_tracked_token_address(&log.address, log.ordinal, dds_store, created_in_block))
-                .filter_map(|log| {
-                    if let Some(event) = abi::token_coin_contract::events::PreCrimeSet::match_and_decode(log) {
-                        let token_address = format!("0x{}", Hex(&log.address).to_string());
-                        return Some(contract::TokenCoinPreCrimeSet {
-                            evt_tx_hash: Hex(&view.transaction.hash).to_string(),
-                            evt_index: log.block_index,
-                            evt_block_time: Some(blk.timestamp().to_owned()),
-                            evt_block_number: blk.number,
-                            token_address: token_address.clone(),
-                            pre_crime_address: event.pre_crime_address,
-                            token_layer_id: token_layer_id_from_token_address(token_id_to_address_store, &token_address),
-                        });
-                    }
+    events.token_coin_pre_crime_sets.append(
+        &mut blk
+            .receipts()
+            .flat_map(|view| {
+                view.receipt
+                    .logs
+                    .iter()
+                    .filter(|log| {
+                        is_tracked_token_address(
+                            &log.address,
+                            log.ordinal,
+                            dds_store,
+                            created_in_block,
+                        )
+                    })
+                    .filter_map(|log| {
+                        if let Some(event) =
+                            abi::token_coin_contract::events::PreCrimeSet::match_and_decode(log)
+                        {
+                            let token_address = format!("0x{}", Hex(&log.address).to_string());
+                            return Some(contract::TokenCoinPreCrimeSet {
+                                evt_tx_hash: Hex(&view.transaction.hash).to_string(),
+                                evt_index: log.block_index,
+                                evt_block_time: Some(blk.timestamp().to_owned()),
+                                evt_block_number: blk.number,
+                                token_address: token_address.clone(),
+                                pre_crime_address: event.pre_crime_address,
+                                token_layer_id: token_layer_id_from_token_address(
+                                    token_id_to_address_store,
+                                    &token_address,
+                                ),
+                            });
+                        }
 
-                    None
-                })
-        })
-        .collect());
+                        None
+                    })
+            })
+            .collect(),
+    );
 
-    events.token_coin_transfers.append(&mut blk
-        .receipts()
-        .flat_map(|view| {
-            view.receipt.logs.iter()
-                .filter(|log| is_tracked_token_address(&log.address, log.ordinal, dds_store, created_in_block))
-                .filter_map(|log| {
-                    if let Some(event) = abi::token_coin_contract::events::Transfer::match_and_decode(log) {
-                        let token_address = format!("0x{}", Hex(&log.address).to_string());
-                        return Some(contract::TokenCoinTransfer {
-                            evt_tx_hash: Hex(&view.transaction.hash).to_string(),
-                            evt_index: log.block_index,
-                            evt_block_time: Some(blk.timestamp().to_owned()),
-                            evt_block_number: blk.number,
-                            token_address: token_address.clone(),
-                            amount: event.amount.to_string(),
-                            from: event.from,
-                            to: event.to,
-                            token_layer_id: token_layer_id_from_token_address(token_id_to_address_store, &token_address),
-                        });
-                    }
+    events.token_coin_transfers.append(
+        &mut blk
+            .receipts()
+            .flat_map(|view| {
+                view.receipt
+                    .logs
+                    .iter()
+                    .filter(|log| {
+                        is_tracked_token_address(
+                            &log.address,
+                            log.ordinal,
+                            dds_store,
+                            created_in_block,
+                        )
+                    })
+                    .filter_map(|log| {
+                        if let Some(event) =
+                            abi::token_coin_contract::events::Transfer::match_and_decode(log)
+                        {
+                            let token_address = format!("0x{}", Hex(&log.address).to_string());
+                            return Some(contract::TokenCoinTransfer {
+                                evt_tx_hash: Hex(&view.transaction.hash).to_string(),
+                                evt_index: log.block_index,
+                                evt_block_time: Some(blk.timestamp().to_owned()),
+                                evt_block_number: blk.number,
+                                token_address: token_address.clone(),
+                                amount: event.amount.to_string(),
+                                from: event.from,
+                                to: event.to,
+                                token_layer_id: token_layer_id_from_token_address(
+                                    token_id_to_address_store,
+                                    &token_address,
+                                ),
+                            });
+                        }
 
-                    None
-                })
-        })
-        .collect());
+                        None
+                    })
+            })
+            .collect(),
+    );
 }
 
 fn map_uniswap_v3_pool_events(
@@ -2771,168 +3478,284 @@ fn map_uniswap_v3_pool_events(
     token_id_to_address_store: &store::StoreGetString,
     events: &mut contract::Events,
 ) {
-    events.uniswap_v3_swaps.append(&mut blk
-        .receipts()
-        .flat_map(|view| {
-            view.receipt.logs.iter()
-                .filter(|log| is_declared_dds_address(&log.address, log.ordinal, pools_store))
-                .filter_map(|log| {
-                    if let Some(event) = abi::uniswap_v3_pool_contract::events::Swap::match_and_decode(log) {
-                        let pool_key = Hex(&log.address).to_string();
-                        let pool_meta = pool_meta_store.get_last(pool_key.clone()).unwrap_or_default();
-                        let mut parts = pool_meta.split('|');
-                        let token0 = parts.next().unwrap_or_default().to_string();
-                        let token1 = parts.next().unwrap_or_default().to_string();
-                        let token0_address = if token0.is_empty() { String::new() } else { format!("0x{}", token0) };
-                        let token1_address = if token1.is_empty() { String::new() } else { format!("0x{}", token1) };
-                        let token0_layer_id = if token0_address.is_empty() {
-                            String::new()
+    events.uniswap_v3_swaps.append(
+        &mut blk
+            .receipts()
+            .flat_map(|view| {
+                view.receipt
+                    .logs
+                    .iter()
+                    .filter(|log| is_declared_dds_address(&log.address, log.ordinal, pools_store))
+                    .filter_map(|log| {
+                        let decoded = if let Some(event) =
+                            abi::uniswap_v3_pool_contract::events::Swap::match_and_decode(log)
+                        {
+                            Some((
+                                event.sender.to_vec(),
+                                event.recipient.to_vec(),
+                                event.amount0.to_string(),
+                                event.amount1.to_string(),
+                                event.sqrt_price_x96.to_string(),
+                                event.liquidity.to_string(),
+                                event.tick.to_string(),
+                                String::new(),
+                                String::new(),
+                            ))
+                        } else if let Some(event) =
+                            abi::pancakeswap_v3_pool_contract::events::Swap::match_and_decode(log)
+                        {
+                            Some((
+                                event.sender.to_vec(),
+                                event.recipient.to_vec(),
+                                event.amount0.to_string(),
+                                event.amount1.to_string(),
+                                event.sqrt_price_x96.to_string(),
+                                event.liquidity.to_string(),
+                                event.tick.to_string(),
+                                event.protocol_fees_token0.to_string(),
+                                event.protocol_fees_token1.to_string(),
+                            ))
                         } else {
-                            token_layer_id_from_token_address(token_id_to_address_store, &token0_address)
-                        };
-                        let token1_layer_id = if token1_address.is_empty() {
-                            String::new()
-                        } else {
-                            token_layer_id_from_token_address(token_id_to_address_store, &token1_address)
-                        };
-                        let (token_address, token_layer_id) = if !token0_layer_id.is_empty() {
-                            (token0_address, token0_layer_id)
-                        } else if !token1_layer_id.is_empty() {
-                            (token1_address, token1_layer_id)
-                        } else {
-                            (String::new(), String::new())
-                        };
-                        return Some(contract::UniswapV3Swap {
-                            evt_tx_hash: Hex(&view.transaction.hash).to_string(),
-                            evt_index: log.block_index,
-                            evt_block_time: Some(blk.timestamp().to_owned()),
-                            evt_block_number: blk.number,
-                            pool: format!("0x{}", Hex(&log.address).to_string()),
-                            sender: format!("0x{}", Hex(&event.sender).to_string()),
-                            recipient: format!("0x{}", Hex(&event.recipient).to_string()),
-                            amount0: event.amount0.to_string(),
-                            amount1: event.amount1.to_string(),
-                            sqrt_price_x96: event.sqrt_price_x96.to_string(),
-                            liquidity: event.liquidity.to_string(),
-                            tick: event.tick.to_string(),
-                            token_address,
-                            token_layer_id,
-                        });
-                    }
-
-                    None
-                })
-        })
-        .collect());
-
-    events.uniswap_v3_mints.append(&mut blk
-        .receipts()
-        .flat_map(|view| {
-            view.receipt.logs.iter()
-                .filter(|log| is_declared_dds_address(&log.address, log.ordinal, pools_store))
-                .filter_map(|log| {
-                    if let Some((owner, sender, tick_lower, tick_upper, amount, amount0, amount1)) = decode_uniswap_v3_mint(log) {
-                        let pool_key = Hex(&log.address).to_string();
-                        let pool_meta = pool_meta_store.get_last(pool_key.clone()).unwrap_or_default();
-                        let mut parts = pool_meta.split('|');
-                        let token0 = parts.next().unwrap_or_default().to_string();
-                        let token1 = parts.next().unwrap_or_default().to_string();
-                        let token0_address = if token0.is_empty() { String::new() } else { format!("0x{}", token0) };
-                        let token1_address = if token1.is_empty() { String::new() } else { format!("0x{}", token1) };
-                        let token0_layer_id = if token0_address.is_empty() {
-                            String::new()
-                        } else {
-                            token_layer_id_from_token_address(token_id_to_address_store, &token0_address)
-                        };
-                        let token1_layer_id = if token1_address.is_empty() {
-                            String::new()
-                        } else {
-                            token_layer_id_from_token_address(token_id_to_address_store, &token1_address)
-                        };
-                        let (token_address, token_layer_id) = if !token0_layer_id.is_empty() {
-                            (token0_address, token0_layer_id)
-                        } else if !token1_layer_id.is_empty() {
-                            (token1_address, token1_layer_id)
-                        } else {
-                            (String::new(), String::new())
+                            None
                         };
 
-                        return Some(contract::UniswapV3Mint {
-                            evt_tx_hash: Hex(&view.transaction.hash).to_string(),
-                            evt_index: log.block_index,
-                            evt_block_time: Some(blk.timestamp().to_owned()),
-                            evt_block_number: blk.number,
-                            pool: format!("0x{}", Hex(&log.address).to_string()),
-                            owner: format!("0x{}", Hex(&owner).to_string()),
-                            sender: format!("0x{}", Hex(&sender).to_string()),
-                            tick_lower: tick_lower.to_string(),
-                            tick_upper: tick_upper.to_string(),
+                        if let Some((
+                            sender,
+                            recipient,
+                            amount0,
+                            amount1,
+                            sqrt_price_x96,
+                            liquidity,
+                            tick,
+                            protocol_fees_token0,
+                            protocol_fees_token1,
+                        )) = decoded
+                        {
+                            let pool_key = Hex(&log.address).to_string();
+                            let pool_meta = pool_meta_store
+                                .get_last(pool_key.clone())
+                                .unwrap_or_default();
+                            let mut parts = pool_meta.split('|');
+                            let token0 = parts.next().unwrap_or_default().to_string();
+                            let token1 = parts.next().unwrap_or_default().to_string();
+                            let token0_address = if token0.is_empty() {
+                                String::new()
+                            } else {
+                                format!("0x{}", token0)
+                            };
+                            let token1_address = if token1.is_empty() {
+                                String::new()
+                            } else {
+                                format!("0x{}", token1)
+                            };
+                            let token0_layer_id = if token0_address.is_empty() {
+                                String::new()
+                            } else {
+                                token_layer_id_from_token_address(
+                                    token_id_to_address_store,
+                                    &token0_address,
+                                )
+                            };
+                            let token1_layer_id = if token1_address.is_empty() {
+                                String::new()
+                            } else {
+                                token_layer_id_from_token_address(
+                                    token_id_to_address_store,
+                                    &token1_address,
+                                )
+                            };
+                            let (token_address, token_layer_id) = if !token0_layer_id.is_empty() {
+                                (token0_address, token0_layer_id)
+                            } else if !token1_layer_id.is_empty() {
+                                (token1_address, token1_layer_id)
+                            } else {
+                                (String::new(), String::new())
+                            };
+                            return Some(contract::UniswapV3Swap {
+                                evt_tx_hash: Hex(&view.transaction.hash).to_string(),
+                                evt_index: log.block_index,
+                                evt_block_time: Some(blk.timestamp().to_owned()),
+                                evt_block_number: blk.number,
+                                pool: format!("0x{}", Hex(&log.address).to_string()),
+                                sender: format!("0x{}", Hex(&sender).to_string()),
+                                recipient: format!("0x{}", Hex(&recipient).to_string()),
+                                amount0,
+                                amount1,
+                                sqrt_price_x96,
+                                liquidity,
+                                tick,
+                                token_address,
+                                token_layer_id,
+                                protocol_fees_token0,
+                                protocol_fees_token1,
+                            });
+                        }
+
+                        None
+                    })
+            })
+            .collect(),
+    );
+
+    events.uniswap_v3_mints.append(
+        &mut blk
+            .receipts()
+            .flat_map(|view| {
+                view.receipt
+                    .logs
+                    .iter()
+                    .filter(|log| is_declared_dds_address(&log.address, log.ordinal, pools_store))
+                    .filter_map(|log| {
+                        if let Some((
+                            owner,
+                            sender,
+                            tick_lower,
+                            tick_upper,
                             amount,
                             amount0,
                             amount1,
-                            token_address,
-                            token_layer_id,
-                        });
-                    }
+                        )) = decode_uniswap_v3_mint(log)
+                        {
+                            let pool_key = Hex(&log.address).to_string();
+                            let pool_meta = pool_meta_store
+                                .get_last(pool_key.clone())
+                                .unwrap_or_default();
+                            let mut parts = pool_meta.split('|');
+                            let token0 = parts.next().unwrap_or_default().to_string();
+                            let token1 = parts.next().unwrap_or_default().to_string();
+                            let token0_address = if token0.is_empty() {
+                                String::new()
+                            } else {
+                                format!("0x{}", token0)
+                            };
+                            let token1_address = if token1.is_empty() {
+                                String::new()
+                            } else {
+                                format!("0x{}", token1)
+                            };
+                            let token0_layer_id = if token0_address.is_empty() {
+                                String::new()
+                            } else {
+                                token_layer_id_from_token_address(
+                                    token_id_to_address_store,
+                                    &token0_address,
+                                )
+                            };
+                            let token1_layer_id = if token1_address.is_empty() {
+                                String::new()
+                            } else {
+                                token_layer_id_from_token_address(
+                                    token_id_to_address_store,
+                                    &token1_address,
+                                )
+                            };
+                            let (token_address, token_layer_id) = if !token0_layer_id.is_empty() {
+                                (token0_address, token0_layer_id)
+                            } else if !token1_layer_id.is_empty() {
+                                (token1_address, token1_layer_id)
+                            } else {
+                                (String::new(), String::new())
+                            };
 
-                    None
-                })
-        })
-        .collect());
+                            return Some(contract::UniswapV3Mint {
+                                evt_tx_hash: Hex(&view.transaction.hash).to_string(),
+                                evt_index: log.block_index,
+                                evt_block_time: Some(blk.timestamp().to_owned()),
+                                evt_block_number: blk.number,
+                                pool: format!("0x{}", Hex(&log.address).to_string()),
+                                owner: format!("0x{}", Hex(&owner).to_string()),
+                                sender: format!("0x{}", Hex(&sender).to_string()),
+                                tick_lower: tick_lower.to_string(),
+                                tick_upper: tick_upper.to_string(),
+                                amount,
+                                amount0,
+                                amount1,
+                                token_address,
+                                token_layer_id,
+                            });
+                        }
 
-    events.uniswap_v3_burns.append(&mut blk
-        .receipts()
-        .flat_map(|view| {
-            view.receipt.logs.iter()
-                .filter(|log| is_declared_dds_address(&log.address, log.ordinal, pools_store))
-                .filter_map(|log| {
-                    if let Some((owner, tick_lower, tick_upper, amount, amount0, amount1)) = decode_uniswap_v3_burn(log) {
-                        let pool_key = Hex(&log.address).to_string();
-                        let pool_meta = pool_meta_store.get_last(pool_key.clone()).unwrap_or_default();
-                        let mut parts = pool_meta.split('|');
-                        let token0 = parts.next().unwrap_or_default().to_string();
-                        let token1 = parts.next().unwrap_or_default().to_string();
-                        let token0_address = if token0.is_empty() { String::new() } else { format!("0x{}", token0) };
-                        let token1_address = if token1.is_empty() { String::new() } else { format!("0x{}", token1) };
-                        let token0_layer_id = if token0_address.is_empty() {
-                            String::new()
-                        } else {
-                            token_layer_id_from_token_address(token_id_to_address_store, &token0_address)
-                        };
-                        let token1_layer_id = if token1_address.is_empty() {
-                            String::new()
-                        } else {
-                            token_layer_id_from_token_address(token_id_to_address_store, &token1_address)
-                        };
-                        let (token_address, token_layer_id) = if !token0_layer_id.is_empty() {
-                            (token0_address, token0_layer_id)
-                        } else if !token1_layer_id.is_empty() {
-                            (token1_address, token1_layer_id)
-                        } else {
-                            (String::new(), String::new())
-                        };
+                        None
+                    })
+            })
+            .collect(),
+    );
 
-                        return Some(contract::UniswapV3Burn {
-                            evt_tx_hash: Hex(&view.transaction.hash).to_string(),
-                            evt_index: log.block_index,
-                            evt_block_time: Some(blk.timestamp().to_owned()),
-                            evt_block_number: blk.number,
-                            pool: format!("0x{}", Hex(&log.address).to_string()),
-                            owner: format!("0x{}", Hex(&owner).to_string()),
-                            tick_lower: tick_lower.to_string(),
-                            tick_upper: tick_upper.to_string(),
-                            amount,
-                            amount0,
-                            amount1,
-                            token_address,
-                            token_layer_id,
-                        });
-                    }
+    events.uniswap_v3_burns.append(
+        &mut blk
+            .receipts()
+            .flat_map(|view| {
+                view.receipt
+                    .logs
+                    .iter()
+                    .filter(|log| is_declared_dds_address(&log.address, log.ordinal, pools_store))
+                    .filter_map(|log| {
+                        if let Some((owner, tick_lower, tick_upper, amount, amount0, amount1)) =
+                            decode_uniswap_v3_burn(log)
+                        {
+                            let pool_key = Hex(&log.address).to_string();
+                            let pool_meta = pool_meta_store
+                                .get_last(pool_key.clone())
+                                .unwrap_or_default();
+                            let mut parts = pool_meta.split('|');
+                            let token0 = parts.next().unwrap_or_default().to_string();
+                            let token1 = parts.next().unwrap_or_default().to_string();
+                            let token0_address = if token0.is_empty() {
+                                String::new()
+                            } else {
+                                format!("0x{}", token0)
+                            };
+                            let token1_address = if token1.is_empty() {
+                                String::new()
+                            } else {
+                                format!("0x{}", token1)
+                            };
+                            let token0_layer_id = if token0_address.is_empty() {
+                                String::new()
+                            } else {
+                                token_layer_id_from_token_address(
+                                    token_id_to_address_store,
+                                    &token0_address,
+                                )
+                            };
+                            let token1_layer_id = if token1_address.is_empty() {
+                                String::new()
+                            } else {
+                                token_layer_id_from_token_address(
+                                    token_id_to_address_store,
+                                    &token1_address,
+                                )
+                            };
+                            let (token_address, token_layer_id) = if !token0_layer_id.is_empty() {
+                                (token0_address, token0_layer_id)
+                            } else if !token1_layer_id.is_empty() {
+                                (token1_address, token1_layer_id)
+                            } else {
+                                (String::new(), String::new())
+                            };
 
-                    None
-                })
-        })
-        .collect());
+                            return Some(contract::UniswapV3Burn {
+                                evt_tx_hash: Hex(&view.transaction.hash).to_string(),
+                                evt_index: log.block_index,
+                                evt_block_time: Some(blk.timestamp().to_owned()),
+                                evt_block_number: blk.number,
+                                pool: format!("0x{}", Hex(&log.address).to_string()),
+                                owner: format!("0x{}", Hex(&owner).to_string()),
+                                tick_lower: tick_lower.to_string(),
+                                tick_upper: tick_upper.to_string(),
+                                amount,
+                                amount0,
+                                amount1,
+                                token_address,
+                                token_layer_id,
+                            });
+                        }
+
+                        None
+                    })
+            })
+            .collect(),
+    );
 }
 
 fn map_wallet_token_balance_events(
@@ -2946,13 +3769,17 @@ fn map_wallet_token_balance_events(
     let mut touched_keys: HashMap<String, u64> = HashMap::new();
 
     for view in blk.receipts() {
-        for log in view
-            .receipt
-            .logs
-            .iter()
-            .filter(|log| is_tracked_token_address(&log.address, log.ordinal, tracked_tokens_store, created_in_block))
-        {
-            if let Some(transfer) = abi::token_coin_contract::events::Transfer::match_and_decode(log) {
+        for log in view.receipt.logs.iter().filter(|log| {
+            is_tracked_token_address(
+                &log.address,
+                log.ordinal,
+                tracked_tokens_store,
+                created_in_block,
+            )
+        }) {
+            if let Some(transfer) =
+                abi::token_coin_contract::events::Transfer::match_and_decode(log)
+            {
                 if !is_zero_address(&transfer.from) {
                     let from_key = balance_store_key(&log.address, &transfer.from);
                     touched_keys.insert(from_key, log.ordinal);
@@ -2975,14 +3802,19 @@ fn map_wallet_token_balance_events(
 
         if let Some(balance) = balances_store.get_at(ordinal, key.clone()) {
             let token_address = format!("0x{}", token);
-            events.wallet_token_balances.push(contract::WalletTokenBalance {
-                evt_block_number: blk.number,
-                evt_block_time: Some(blk.timestamp().to_owned()),
-                token_address: token_address.clone(),
-                wallet: format!("0x{}", wallet),
-                balance: balance.to_string(),
-                token_layer_id: token_layer_id_from_token_address(token_id_to_address_store, &token_address),
-            });
+            events
+                .wallet_token_balances
+                .push(contract::WalletTokenBalance {
+                    evt_block_number: blk.number,
+                    evt_block_time: Some(blk.timestamp().to_owned()),
+                    token_address: token_address.clone(),
+                    wallet: format!("0x{}", wallet),
+                    balance: balance.to_string(),
+                    token_layer_id: token_layer_id_from_token_address(
+                        token_id_to_address_store,
+                        &token_address,
+                    ),
+                });
         }
     }
 }
@@ -2997,7 +3829,12 @@ fn map_fee_balance_events(
     let mut touched_protocol_keys: HashMap<String, u64> = HashMap::new();
 
     for view in blk.receipts() {
-        for log in view.receipt.logs.iter().filter(|log| log.address == FEES_TRACKED_CONTRACT) {
+        for log in view
+            .receipt
+            .logs
+            .iter()
+            .filter(|log| log.address == FEES_TRACKED_CONTRACT)
+        {
             if let Some(event) = abi::fees_contract::events::FeeDistributed::match_and_decode(log) {
                 let key = user_fee_balance_store_key(&event.recipient, &event.currency);
                 touched_user_keys.insert(key, log.ordinal);
@@ -3006,11 +3843,15 @@ fn map_fee_balance_events(
                 let key = user_fee_balance_store_key(&event.recipient, &event.currency);
                 touched_user_keys.insert(key, log.ordinal);
             }
-            if let Some(event) = abi::fees_contract::events::ProtocolFeeDistributed::match_and_decode(log) {
+            if let Some(event) =
+                abi::fees_contract::events::ProtocolFeeDistributed::match_and_decode(log)
+            {
                 let key = protocol_fee_balance_store_key(&event.currency);
                 touched_protocol_keys.insert(key, log.ordinal);
             }
-            if let Some(event) = abi::fees_contract::events::ProtocolWithdrawn::match_and_decode(log) {
+            if let Some(event) =
+                abi::fees_contract::events::ProtocolWithdrawn::match_and_decode(log)
+            {
                 let key = protocol_fee_balance_store_key(&event.currency);
                 touched_protocol_keys.insert(key, log.ordinal);
             }
@@ -3025,13 +3866,15 @@ fn map_fee_balance_events(
             continue;
         }
         if let Some(balance) = user_fee_balances_store.get_at(ordinal, key) {
-            events.user_fee_balance_currents.push(contract::UserFeeBalanceCurrent {
-                evt_block_number: blk.number,
-                evt_block_time: Some(blk.timestamp().to_owned()),
-                account: format!("0x{}", account),
-                currency: format!("0x{}", currency),
-                balance: balance.to_string(),
-            });
+            events
+                .user_fee_balance_currents
+                .push(contract::UserFeeBalanceCurrent {
+                    evt_block_number: blk.number,
+                    evt_block_time: Some(blk.timestamp().to_owned()),
+                    account: format!("0x{}", account),
+                    currency: format!("0x{}", currency),
+                    balance: balance.to_string(),
+                });
         }
     }
 
@@ -3040,12 +3883,14 @@ fn map_fee_balance_events(
             continue;
         }
         if let Some(balance) = protocol_fee_balances_store.get_at(ordinal, key.clone()) {
-            events.protocol_fee_balance_currents.push(contract::ProtocolFeeBalanceCurrent {
-                evt_block_number: blk.number,
-                evt_block_time: Some(blk.timestamp().to_owned()),
-                currency: format!("0x{}", key),
-                balance: balance.to_string(),
-            });
+            events
+                .protocol_fee_balance_currents
+                .push(contract::ProtocolFeeBalanceCurrent {
+                    evt_block_number: blk.number,
+                    evt_block_time: Some(blk.timestamp().to_owned()),
+                    currency: format!("0x{}", key),
+                    balance: balance.to_string(),
+                });
         }
     }
 }
@@ -3073,13 +3918,22 @@ fn get_token_total_supply(
 
 fn map_agg_token_trades(
     params: &str,
-    _blk: &eth::Block,
+    blk: &eth::Block,
     token_id_to_address_store: &store::StoreGetString,
     token_decimals_store: &store::StoreGetInt64,
     token_total_supply_store: &store::StoreGetBigInt,
     uniswap_pool_meta_store: &store::StoreGetString,
     events: &mut contract::Events,
 ) {
+    let tx_wallets: HashMap<String, String> = blk
+        .receipts()
+        .map(|view| {
+            (
+                format!("0x{}", Hex(&view.transaction.hash).to_string()),
+                format!("0x{}", Hex(&view.transaction.from).to_string()),
+            )
+        })
+        .collect();
     let usd_token_address = resolve_usd_token_address(params);
     let usd_decimals = resolve_u64_param(params, "usd_token_decimals", 6);
     let launchpad_usd_decimals = resolve_u64_param(params, "launchpad_usd_decimals", 18);
@@ -3105,8 +3959,11 @@ fn map_agg_token_trades(
             .get_last(format!("addr:{}", token_address.to_lowercase()))
             .unwrap_or_else(|| token_id_key.clone());
         let token_no_prefix = token_address.trim_start_matches("0x");
-        let (token_decimals, token_decimals_source) =
-            get_token_decimals_with_source(token_decimals_store, token_no_prefix, default_token_decimals);
+        let (token_decimals, token_decimals_source) = get_token_decimals_with_source(
+            token_decimals_store,
+            token_no_prefix,
+            default_token_decimals,
+        );
         let token_amount_raw = parse_big_int_or_zero(&evt.tokens_out);
         let usd_amount_raw = parse_big_int_or_zero(&evt.amount_in);
         if token_amount_raw.is_zero() {
@@ -3118,16 +3975,20 @@ fn map_agg_token_trades(
         let circulating_raw = parse_big_int_or_zero(&evt.supply);
         let tokens_left_raw = parse_big_int_or_zero(&evt.tokens_left);
         let total_from_pool_raw = circulating_raw + tokens_left_raw;
-        let default_total_supply_raw =
-            substreams::scalar::BigInt::from(default_token_supply) * substreams::scalar::BigInt::from(10).pow(token_decimals as u32);
-        let configured_total_supply_raw =
-            get_token_total_supply(token_total_supply_store, token_no_prefix, &default_total_supply_raw);
+        let default_total_supply_raw = substreams::scalar::BigInt::from(default_token_supply)
+            * substreams::scalar::BigInt::from(10).pow(token_decimals as u32);
+        let configured_total_supply_raw = get_token_total_supply(
+            token_total_supply_store,
+            token_no_prefix,
+            &default_total_supply_raw,
+        );
         let effective_total_supply_raw = if configured_total_supply_raw > total_from_pool_raw {
             configured_total_supply_raw
         } else {
             total_from_pool_raw
         };
-        let market_cap_usd = price_usd.clone() * effective_total_supply_raw.to_decimal(token_decimals);
+        let market_cap_usd =
+            price_usd.clone() * effective_total_supply_raw.to_decimal(token_decimals);
 
         events.agg_token_trades.push(contract::AggTokenTrade {
             evt_tx_hash: evt.evt_tx_hash.clone(),
@@ -3136,7 +3997,10 @@ fn map_agg_token_trades(
             evt_block_number: evt.evt_block_number,
             venue: "launchpad".to_string(),
             trade_type: "buy".to_string(),
-            wallet: format!("0x{}", Hex(&evt.trader).to_string()),
+            wallet: tx_wallets
+                .get(&evt.evt_tx_hash)
+                .cloned()
+                .unwrap_or_else(|| format!("0x{}", Hex(&evt.trader).to_string())),
             token_address: token_address.clone(),
             pool: String::new(),
             token_amount: decimal_to_string_max_18(&token_amount),
@@ -3150,6 +4014,8 @@ fn map_agg_token_trades(
             quote_decimals: launchpad_usd_decimals,
             token_decimals_source,
             quote_decimals_source: "launchpad_param".to_string(),
+            trader: format!("0x{}", Hex(&evt.trader).to_string()),
+            receiver: format!("0x{}", Hex(&evt.receiver).to_string()),
         });
     }
 
@@ -3172,8 +4038,11 @@ fn map_agg_token_trades(
             .get_last(format!("addr:{}", token_address.to_lowercase()))
             .unwrap_or_else(|| token_id_key.clone());
         let token_no_prefix = token_address.trim_start_matches("0x");
-        let (token_decimals, token_decimals_source) =
-            get_token_decimals_with_source(token_decimals_store, token_no_prefix, default_token_decimals);
+        let (token_decimals, token_decimals_source) = get_token_decimals_with_source(
+            token_decimals_store,
+            token_no_prefix,
+            default_token_decimals,
+        );
         let token_amount_raw = parse_big_int_or_zero(&evt.tokens_in);
         let usd_amount_raw = parse_big_int_or_zero(&evt.amount_out);
         if token_amount_raw.is_zero() {
@@ -3185,16 +4054,20 @@ fn map_agg_token_trades(
         let circulating_raw = parse_big_int_or_zero(&evt.supply);
         let tokens_left_raw = parse_big_int_or_zero(&evt.tokens_left);
         let total_from_pool_raw = circulating_raw + tokens_left_raw;
-        let default_total_supply_raw =
-            substreams::scalar::BigInt::from(default_token_supply) * substreams::scalar::BigInt::from(10).pow(token_decimals as u32);
-        let configured_total_supply_raw =
-            get_token_total_supply(token_total_supply_store, token_no_prefix, &default_total_supply_raw);
+        let default_total_supply_raw = substreams::scalar::BigInt::from(default_token_supply)
+            * substreams::scalar::BigInt::from(10).pow(token_decimals as u32);
+        let configured_total_supply_raw = get_token_total_supply(
+            token_total_supply_store,
+            token_no_prefix,
+            &default_total_supply_raw,
+        );
         let effective_total_supply_raw = if configured_total_supply_raw > total_from_pool_raw {
             configured_total_supply_raw
         } else {
             total_from_pool_raw
         };
-        let market_cap_usd = price_usd.clone() * effective_total_supply_raw.to_decimal(token_decimals);
+        let market_cap_usd =
+            price_usd.clone() * effective_total_supply_raw.to_decimal(token_decimals);
 
         events.agg_token_trades.push(contract::AggTokenTrade {
             evt_tx_hash: evt.evt_tx_hash.clone(),
@@ -3203,7 +4076,10 @@ fn map_agg_token_trades(
             evt_block_number: evt.evt_block_number,
             venue: "launchpad".to_string(),
             trade_type: "sell".to_string(),
-            wallet: format!("0x{}", Hex(&evt.trader).to_string()),
+            wallet: tx_wallets
+                .get(&evt.evt_tx_hash)
+                .cloned()
+                .unwrap_or_else(|| format!("0x{}", Hex(&evt.trader).to_string())),
             token_address: token_address.clone(),
             pool: String::new(),
             token_amount: decimal_to_string_max_18(&token_amount),
@@ -3217,6 +4093,8 @@ fn map_agg_token_trades(
             quote_decimals: launchpad_usd_decimals,
             token_decimals_source,
             quote_decimals_source: "launchpad_param".to_string(),
+            trader: format!("0x{}", Hex(&evt.trader).to_string()),
+            receiver: String::new(),
         });
     }
 
@@ -3265,14 +4143,48 @@ fn map_agg_token_trades(
         if token_amount_raw.is_zero() {
             continue;
         }
-        let (token_decimals, token_decimals_source) =
-            get_token_decimals_with_source(token_decimals_store, &tracked_token, default_token_decimals);
+        let (token_decimals, token_decimals_source) = get_token_decimals_with_source(
+            token_decimals_store,
+            &tracked_token,
+            default_token_decimals,
+        );
         let token_amount = token_amount_raw.to_decimal(token_decimals);
         let usd_amount = usd_amount_raw.to_decimal(quote_decimals);
-        let price_usd = usd_amount.clone() / token_amount.clone();
-        let default_total_supply_raw =
-            substreams::scalar::BigInt::from(default_token_supply) * substreams::scalar::BigInt::from(10).pow(token_decimals as u32);
-        let total_supply_raw = get_token_total_supply(token_total_supply_store, &tracked_token, &default_total_supply_raw);
+        let pool_price_token1_per_token0 = uniswap_v3_spot_price_from_sqrt_price_x96(
+            &evt.sqrt_price_x96,
+            if token0 == usd_token_address {
+                usd_decimals
+            } else {
+                token_decimals
+            },
+            if token1 == usd_token_address {
+                usd_decimals
+            } else {
+                token_decimals
+            },
+        );
+        let price_usd = if token0 == usd_token_address {
+            let price = match pool_price_token1_per_token0 {
+                Some(v) => v,
+                None => continue,
+            };
+            if price == substreams::scalar::BigDecimal::from(0) {
+                continue;
+            }
+            substreams::scalar::BigDecimal::from(1) / price
+        } else {
+            match pool_price_token1_per_token0 {
+                Some(v) => v,
+                None => continue,
+            }
+        };
+        let default_total_supply_raw = substreams::scalar::BigInt::from(default_token_supply)
+            * substreams::scalar::BigInt::from(10).pow(token_decimals as u32);
+        let total_supply_raw = get_token_total_supply(
+            token_total_supply_store,
+            &tracked_token,
+            &default_total_supply_raw,
+        );
         let market_cap_usd = price_usd.clone() * total_supply_raw.to_decimal(token_decimals);
 
         let tracked_token_address = format!("0x{}", tracked_token);
@@ -3287,7 +4199,10 @@ fn map_agg_token_trades(
             evt_block_number: evt.evt_block_number,
             venue: "uniswap_v3".to_string(),
             trade_type: trade_type.to_string(),
-            wallet: evt.sender.clone(),
+            wallet: tx_wallets
+                .get(&evt.evt_tx_hash)
+                .cloned()
+                .unwrap_or_else(|| evt.sender.clone()),
             token_address: tracked_token_address,
             pool: evt.pool.clone(),
             token_amount: decimal_to_string_max_18(&token_amount),
@@ -3301,6 +4216,8 @@ fn map_agg_token_trades(
             quote_decimals,
             token_decimals_source,
             quote_decimals_source: "stablecoin_param".to_string(),
+            trader: evt.sender.clone(),
+            receiver: evt.recipient.clone(),
         });
     }
 }
@@ -3314,16 +4231,22 @@ fn store_token_coin_created(blk: eth::Block, store: StoreSetInt64) {
             .iter()
             .filter(|log| log.address == REGISTRY_TRACKED_CONTRACT)
         {
-            if let Some(event) = abi::registry_contract::events::TokenCreated::match_and_decode(log) {
+            if let Some(event) = abi::registry_contract::events::TokenCreated::match_and_decode(log)
+            {
                 store.set(log.ordinal, Hex(event.token_address).to_string(), &1);
             }
-            if let Some(event) = abi::registry_contract::events::CoinCreated::match_and_decode(log) {
+            if let Some(event) = abi::registry_contract::events::CoinCreated::match_and_decode(log)
+            {
                 store.set(log.ordinal, Hex(event.coin_address).to_string(), &1);
             }
-            if let Some(event) = abi::registry_contract::events::ExternalTokenCreated::match_and_decode(log) {
+            if let Some(event) =
+                abi::registry_contract::events::ExternalTokenCreated::match_and_decode(log)
+            {
                 store.set(log.ordinal, Hex(event.token_address).to_string(), &1);
             }
-            if let Some(event) = abi::registry_contract::events::TokenRegistered::match_and_decode(log) {
+            if let Some(event) =
+                abi::registry_contract::events::TokenRegistered::match_and_decode(log)
+            {
                 store.set(log.ordinal, Hex(event.token_address).to_string(), &1);
             }
         }
@@ -3339,7 +4262,8 @@ fn store_token_id_to_address(blk: eth::Block, store: StoreSetString) {
             .iter()
             .filter(|log| log.address == REGISTRY_TRACKED_CONTRACT)
         {
-            if let Some(event) = abi::registry_contract::events::TokenCreated::match_and_decode(log) {
+            if let Some(event) = abi::registry_contract::events::TokenCreated::match_and_decode(log)
+            {
                 let token_id = if log.topics.len() > 2 {
                     format!("0x{}", Hex(&log.topics[2]).to_string())
                 } else {
@@ -3352,19 +4276,35 @@ fn store_token_id_to_address(blk: eth::Block, store: StoreSetString) {
                 } else {
                     event.token_id.to_string()
                 };
-                store.set(log.ordinal, format!("addr:{}", token_address.to_lowercase()), &reverse_token_id);
+                store.set(
+                    log.ordinal,
+                    format!("addr:{}", token_address.to_lowercase()),
+                    &reverse_token_id,
+                );
             }
-            if let Some(event) = abi::registry_contract::events::TokenRegistered::match_and_decode(log) {
+            if let Some(event) =
+                abi::registry_contract::events::TokenRegistered::match_and_decode(log)
+            {
                 let token_id = format!("0x{}", Hex(&event.token_id).to_string());
                 let token_address = format!("0x{}", Hex(&event.token_address).to_string());
                 store.set(log.ordinal, token_id, &token_address);
-                store.set(log.ordinal, format!("addr:{}", token_address.to_lowercase()), &format!("0x{}", Hex(&event.token_id).to_string()));
+                store.set(
+                    log.ordinal,
+                    format!("addr:{}", token_address.to_lowercase()),
+                    &format!("0x{}", Hex(&event.token_id).to_string()),
+                );
             }
-            if let Some(event) = abi::registry_contract::events::ExternalTokenCreated::match_and_decode(log) {
+            if let Some(event) =
+                abi::registry_contract::events::ExternalTokenCreated::match_and_decode(log)
+            {
                 let token_id = format!("0x{}", Hex(&event.token_id).to_string());
                 let token_address = format!("0x{}", Hex(&event.token_address).to_string());
                 store.set(log.ordinal, token_id, &token_address);
-                store.set(log.ordinal, format!("addr:{}", token_address.to_lowercase()), &format!("0x{}", Hex(&event.token_id).to_string()));
+                store.set(
+                    log.ordinal,
+                    format!("addr:{}", token_address.to_lowercase()),
+                    &format!("0x{}", Hex(&event.token_id).to_string()),
+                );
             }
         }
     }
@@ -3379,13 +4319,23 @@ fn store_token_decimals(blk: eth::Block, store: StoreSetInt64) {
             .iter()
             .filter(|log| log.address == REGISTRY_TRACKED_CONTRACT)
         {
-            if let Some(event) = abi::registry_contract::events::TokenCreated::match_and_decode(log) {
+            if let Some(event) = abi::registry_contract::events::TokenCreated::match_and_decode(log)
+            {
                 let token_address = Hex(&event.token_address).to_string();
-                store.set(log.ordinal, token_address, &(event.decimals.to_u64() as i64));
+                store.set(
+                    log.ordinal,
+                    token_address,
+                    &(event.decimals.to_u64() as i64),
+                );
             }
-            if let Some(event) = abi::registry_contract::events::CoinCreated::match_and_decode(log) {
+            if let Some(event) = abi::registry_contract::events::CoinCreated::match_and_decode(log)
+            {
                 let token_address = Hex(&event.coin_address).to_string();
-                store.set(log.ordinal, token_address, &(event.decimals.to_u64() as i64));
+                store.set(
+                    log.ordinal,
+                    token_address,
+                    &(event.decimals.to_u64() as i64),
+                );
             }
         }
     }
@@ -3400,7 +4350,8 @@ fn store_token_total_supply(blk: eth::Block, store: StoreSetBigInt) {
             .iter()
             .filter(|log| log.address == REGISTRY_TRACKED_CONTRACT)
         {
-            if let Some(event) = abi::registry_contract::events::CoinCreated::match_and_decode(log) {
+            if let Some(event) = abi::registry_contract::events::CoinCreated::match_and_decode(log)
+            {
                 let token_address = Hex(&event.coin_address).to_string();
                 let total_supply = parse_big_int_or_zero(&event.total_supply.to_string());
                 store.set(log.ordinal, token_address, &total_supply);
@@ -3410,7 +4361,12 @@ fn store_token_total_supply(blk: eth::Block, store: StoreSetBigInt) {
 }
 
 #[substreams::handlers::store]
-fn store_uniswap_v3_pools(params: String, blk: eth::Block, tracked_tokens_store: StoreGetInt64, store: StoreSetInt64) {
+fn store_uniswap_v3_pools(
+    params: String,
+    blk: eth::Block,
+    tracked_tokens_store: StoreGetInt64,
+    store: StoreSetInt64,
+) {
     let uniswap_v3_factory = resolve_uniswap_factory_address(&params);
     for rcpt in blk.receipts() {
         for log in rcpt
@@ -3419,7 +4375,9 @@ fn store_uniswap_v3_pools(params: String, blk: eth::Block, tracked_tokens_store:
             .iter()
             .filter(|log| Hex(&log.address).to_string() == uniswap_v3_factory)
         {
-            if let Some(event) = abi::uniswap_v3_factory_contract::events::PoolCreated::match_and_decode(log) {
+            if let Some(event) =
+                abi::uniswap_v3_factory_contract::events::PoolCreated::match_and_decode(log)
+            {
                 if !is_declared_dds_address(&event.token0, log.ordinal, &tracked_tokens_store)
                     && !is_declared_dds_address(&event.token1, log.ordinal, &tracked_tokens_store)
                 {
@@ -3432,7 +4390,12 @@ fn store_uniswap_v3_pools(params: String, blk: eth::Block, tracked_tokens_store:
 }
 
 #[substreams::handlers::store]
-fn store_uniswap_v3_pool_meta(params: String, blk: eth::Block, tracked_tokens_store: StoreGetInt64, store: StoreSetString) {
+fn store_uniswap_v3_pool_meta(
+    params: String,
+    blk: eth::Block,
+    tracked_tokens_store: StoreGetInt64,
+    store: StoreSetString,
+) {
     let uniswap_v3_factory = resolve_uniswap_factory_address(&params);
     for rcpt in blk.receipts() {
         for log in rcpt
@@ -3441,14 +4404,20 @@ fn store_uniswap_v3_pool_meta(params: String, blk: eth::Block, tracked_tokens_st
             .iter()
             .filter(|log| Hex(&log.address).to_string() == uniswap_v3_factory)
         {
-            if let Some(event) = abi::uniswap_v3_factory_contract::events::PoolCreated::match_and_decode(log) {
+            if let Some(event) =
+                abi::uniswap_v3_factory_contract::events::PoolCreated::match_and_decode(log)
+            {
                 if !is_declared_dds_address(&event.token0, log.ordinal, &tracked_tokens_store)
                     && !is_declared_dds_address(&event.token1, log.ordinal, &tracked_tokens_store)
                 {
                     continue;
                 }
                 let pool = Hex(&event.pool).to_string();
-                let meta = format!("{}|{}", Hex(&event.token0).to_string(), Hex(&event.token1).to_string());
+                let meta = format!(
+                    "{}|{}",
+                    Hex(&event.token0).to_string(),
+                    Hex(&event.token1).to_string()
+                );
                 store.set(log.ordinal, pool, &meta);
             }
         }
@@ -3463,13 +4432,17 @@ fn store_wallet_token_balances(
 ) {
     let created_in_block = tracked_token_addresses_created_in_block(&blk);
     for rcpt in blk.receipts() {
-        for log in rcpt
-            .receipt
-            .logs
-            .iter()
-            .filter(|log| is_tracked_token_address(&log.address, log.ordinal, &tracked_tokens_store, &created_in_block))
-        {
-            if let Some(transfer) = abi::token_coin_contract::events::Transfer::match_and_decode(log) {
+        for log in rcpt.receipt.logs.iter().filter(|log| {
+            is_tracked_token_address(
+                &log.address,
+                log.ordinal,
+                &tracked_tokens_store,
+                &created_in_block,
+            )
+        }) {
+            if let Some(transfer) =
+                abi::token_coin_contract::events::Transfer::match_and_decode(log)
+            {
                 if !is_zero_address(&transfer.to) {
                     let to_key = balance_store_key(&log.address, &transfer.to);
                     store.add(log.ordinal, to_key, &transfer.amount);
@@ -3487,7 +4460,12 @@ fn store_wallet_token_balances(
 #[substreams::handlers::store]
 fn store_user_fee_balances(blk: eth::Block, store: StoreAddBigInt) {
     for rcpt in blk.receipts() {
-        for log in rcpt.receipt.logs.iter().filter(|log| log.address == FEES_TRACKED_CONTRACT) {
+        for log in rcpt
+            .receipt
+            .logs
+            .iter()
+            .filter(|log| log.address == FEES_TRACKED_CONTRACT)
+        {
             if let Some(event) = abi::fees_contract::events::FeeDistributed::match_and_decode(log) {
                 let key = user_fee_balance_store_key(&event.recipient, &event.currency);
                 let amount = parse_big_int_or_zero(&event.amount.to_string());
@@ -3506,13 +4484,22 @@ fn store_user_fee_balances(blk: eth::Block, store: StoreAddBigInt) {
 #[substreams::handlers::store]
 fn store_protocol_fee_balances(blk: eth::Block, store: StoreAddBigInt) {
     for rcpt in blk.receipts() {
-        for log in rcpt.receipt.logs.iter().filter(|log| log.address == FEES_TRACKED_CONTRACT) {
-            if let Some(event) = abi::fees_contract::events::ProtocolFeeDistributed::match_and_decode(log) {
+        for log in rcpt
+            .receipt
+            .logs
+            .iter()
+            .filter(|log| log.address == FEES_TRACKED_CONTRACT)
+        {
+            if let Some(event) =
+                abi::fees_contract::events::ProtocolFeeDistributed::match_and_decode(log)
+            {
                 let key = protocol_fee_balance_store_key(&event.currency);
                 let amount = parse_big_int_or_zero(&event.amount.to_string());
                 store.add(log.ordinal, key, &amount);
             }
-            if let Some(event) = abi::fees_contract::events::ProtocolWithdrawn::match_and_decode(log) {
+            if let Some(event) =
+                abi::fees_contract::events::ProtocolWithdrawn::match_and_decode(log)
+            {
                 let key = protocol_fee_balance_store_key(&event.currency);
                 let amount = parse_big_int_or_zero(&event.amount.to_string());
                 let negative_amount = substreams::scalar::BigInt::from(0) - amount;
@@ -3523,7 +4510,10 @@ fn store_protocol_fee_balances(blk: eth::Block, store: StoreAddBigInt) {
 }
 
 #[substreams::handlers::store]
-fn store_token_candle_open_1m(events: contract::Events, store: store::StoreSetIfNotExistsBigDecimal) {
+fn store_token_candle_open_1m(
+    events: contract::Events,
+    store: store::StoreSetIfNotExistsBigDecimal,
+) {
     for trade in events.agg_token_trades.into_iter() {
         if trade.token_layer_id.is_empty() || trade.price_usd.is_empty() {
             continue;
@@ -3674,6 +4664,50 @@ fn store_token_candle_trade_count_1m(events: contract::Events, store: store::Sto
     }
 }
 
+#[substreams::handlers::store]
+fn store_token_total_volume_token(events: contract::Events, store: store::StoreAddBigDecimal) {
+    for trade in events.agg_token_trades.into_iter() {
+        if trade.token_layer_id.is_empty() || trade.token_amount.is_empty() {
+            continue;
+        }
+        let amount = parse_big_decimal_or_zero(&trade.token_amount);
+        store.add(trade.evt_index as u64, trade.token_layer_id, &amount);
+    }
+}
+
+#[substreams::handlers::store]
+fn store_token_total_volume_token_raw(events: contract::Events, store: StoreAddBigInt) {
+    for trade in events.agg_token_trades.into_iter() {
+        if trade.token_layer_id.is_empty() || trade.token_amount_raw.is_empty() {
+            continue;
+        }
+        let amount = parse_big_int_or_zero(&trade.token_amount_raw);
+        store.add(trade.evt_index as u64, trade.token_layer_id, &amount);
+    }
+}
+
+#[substreams::handlers::store]
+fn store_token_total_volume_usd(events: contract::Events, store: store::StoreAddBigDecimal) {
+    for trade in events.agg_token_trades.into_iter() {
+        if trade.token_layer_id.is_empty() || trade.usd_amount.is_empty() {
+            continue;
+        }
+        let amount = parse_big_decimal_or_zero(&trade.usd_amount);
+        store.add(trade.evt_index as u64, trade.token_layer_id, &amount);
+    }
+}
+
+#[substreams::handlers::store]
+fn store_token_total_volume_usd_raw(events: contract::Events, store: StoreAddBigInt) {
+    for trade in events.agg_token_trades.into_iter() {
+        if trade.token_layer_id.is_empty() || trade.usd_amount_raw.is_empty() {
+            continue;
+        }
+        let amount = parse_big_int_or_zero(&trade.usd_amount_raw);
+        store.add(trade.evt_index as u64, trade.token_layer_id, &amount);
+    }
+}
+
 #[substreams::handlers::map]
 fn map_events(
     params: String,
@@ -3700,7 +4734,13 @@ fn map_events(
     map_liquidity_mananager_events(&blk, &mut events);
     map_fees_events(&blk, &mut events);
     map_roles_events(&blk, &mut events);
-    map_token_coin_events(&blk, &store_token_coin, &store_token_id_to_address, &created_in_block, &mut events);
+    map_token_coin_events(
+        &blk,
+        &store_token_coin,
+        &store_token_id_to_address,
+        &created_in_block,
+        &mut events,
+    );
     map_uniswap_v3_pool_created_events(
         &blk,
         &store_token_coin,
@@ -3723,7 +4763,12 @@ fn map_events(
         &store_wallet_balances,
         &mut events,
     );
-    map_fee_balance_events(&blk, &store_user_fee_balances, &store_protocol_fee_balances, &mut events);
+    map_fee_balance_events(
+        &blk,
+        &store_user_fee_balances,
+        &store_protocol_fee_balances,
+        &mut events,
+    );
     map_agg_token_trades(
         &params,
         &blk,
@@ -3748,9 +4793,14 @@ fn db_out(
     store_token_candle_volume_usd_1m: store::StoreGetBigDecimal,
     store_token_candle_volume_usd_raw_1m: store::StoreGetBigInt,
     store_token_candle_trade_count_1m: store::StoreGetInt64,
+    store_token_total_volume_token: store::StoreGetBigDecimal,
+    store_token_total_volume_token_raw: store::StoreGetBigInt,
+    store_token_total_volume_usd: store::StoreGetBigDecimal,
+    store_token_total_volume_usd_raw: store::StoreGetBigInt,
 ) -> Result<substreams_database_change::pb::database::DatabaseChanges, substreams::errors::Error> {
     let touched = candle_store_touched_keys(&events);
     let mut candle_rows = Vec::new();
+    let mut cur_token_stats_rows = Vec::new();
 
     for (key, fallback_token_address) in touched.into_iter() {
         let bucket_start = match decode_candle_bucket_start_from_key(&key) {
@@ -3791,7 +4841,9 @@ fn db_out(
         let volume_usd_raw = store_token_candle_volume_usd_raw_1m
             .get_last(key.clone())
             .unwrap_or_else(|| substreams::scalar::BigInt::from(0));
-        let trade_count = store_token_candle_trade_count_1m.get_last(key.clone()).unwrap_or(0);
+        let trade_count = store_token_candle_trade_count_1m
+            .get_last(key.clone())
+            .unwrap_or(0);
         let token_address = fallback_token_address;
         let last_trade = events
             .agg_token_trades
@@ -3832,5 +4884,65 @@ fn db_out(
         });
     }
 
-    Ok(db_changes::events_to_database_changes(events, candle_rows))
+    let touched_token_stats = events.agg_token_trades.iter().fold(
+        std::collections::BTreeMap::<String, (String, i64, Option<prost_types::Timestamp>)>::new(),
+        |mut acc, trade| {
+            if trade.token_layer_id.is_empty() {
+                return acc;
+            }
+            let block_number = trade.evt_block_number as i64;
+            let should_replace = match acc.get(&trade.token_layer_id) {
+                Some((_, existing_block_number, _)) => block_number >= *existing_block_number,
+                None => true,
+            };
+            if should_replace {
+                acc.insert(
+                    trade.token_layer_id.clone(),
+                    (
+                        trade.token_address.clone(),
+                        block_number,
+                        trade.evt_block_time.clone(),
+                    ),
+                );
+            }
+            acc
+        },
+    );
+
+    for (token_layer_id, (token_address, evt_block_number, evt_block_time)) in
+        touched_token_stats.into_iter()
+    {
+        let total_volume_token = store_token_total_volume_token
+            .get_last(token_layer_id.clone())
+            .unwrap_or_else(|| substreams::scalar::BigDecimal::from(0));
+        let total_volume_token_raw = store_token_total_volume_token_raw
+            .get_last(token_layer_id.clone())
+            .unwrap_or_else(|| substreams::scalar::BigInt::from(0));
+        let total_volume_usd = store_token_total_volume_usd
+            .get_last(token_layer_id.clone())
+            .unwrap_or_else(|| substreams::scalar::BigDecimal::from(0));
+        let total_volume_usd_raw = store_token_total_volume_usd_raw
+            .get_last(token_layer_id.clone())
+            .unwrap_or_else(|| substreams::scalar::BigInt::from(0));
+
+        cur_token_stats_rows.push(db_changes::CurTokenStatsRow {
+            row_id: token_layer_id.clone(),
+            block_number: evt_block_number,
+            block_time: evt_block_time.clone(),
+            token_layer_id,
+            token_address,
+            total_volume_token: decimal_to_string_max_18(&total_volume_token),
+            total_volume_token_raw: total_volume_token_raw.to_string(),
+            total_volume_usd: decimal_to_string_max_18(&total_volume_usd),
+            total_volume_usd_raw: total_volume_usd_raw.to_string(),
+            evt_block_number,
+            evt_block_time,
+        });
+    }
+
+    Ok(db_changes::events_to_database_changes(
+        events,
+        candle_rows,
+        cur_token_stats_rows,
+    ))
 }

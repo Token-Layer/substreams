@@ -232,6 +232,113 @@ REVOKE ALL ON TABLE indexer.vw_token_transfers_cross_chain FROM anon;
 REVOKE ALL ON TABLE indexer.vw_token_transfers_cross_chain FROM authenticated;
 GRANT SELECT ON TABLE indexer.vw_token_transfers_cross_chain TO service_role;
 
+CREATE OR REPLACE VIEW indexer.vw_cross_chain_transaction_progress AS
+WITH source_events AS (
+  SELECT
+    'base-sepolia'::text AS chain,
+    'token_registered_externally'::text AS operation_type,
+    t.evt_block_number,
+    t.evt_block_time,
+    t.evt_tx_hash AS src_trx,
+    t.evt_index,
+    t.token_id,
+    t.src_eid::text AS src_eid,
+    t.dst_eid::text AS dst_eid,
+    NULL::text AS amount,
+    NULL::text AS price_in_wei,
+    t.operation_id::text AS operation_id
+  FROM indexer_evm_base_sepolia.raw_oapp_token_registered_externally t
+
+  UNION ALL
+
+  SELECT
+    'base-sepolia'::text AS chain,
+    'token_liquidity_initialized_externally'::text AS operation_type,
+    t.evt_block_number,
+    t.evt_block_time,
+    t.evt_tx_hash AS src_trx,
+    t.evt_index,
+    t.token_id,
+    t.src_eid::text AS src_eid,
+    t.dst_eid::text AS dst_eid,
+    t.amount::text AS amount,
+    t.price_in_wei::text AS price_in_wei,
+    NULL::text AS operation_id
+  FROM indexer_evm_base_sepolia.raw_oapp_token_liquidity_initialized_externally t
+
+  UNION ALL
+
+  SELECT
+    'bnb-testnet'::text AS chain,
+    'token_registered_externally'::text AS operation_type,
+    t.evt_block_number,
+    t.evt_block_time,
+    t.evt_tx_hash AS src_trx,
+    t.evt_index,
+    t.token_id,
+    t.src_eid::text AS src_eid,
+    t.dst_eid::text AS dst_eid,
+    NULL::text AS amount,
+    NULL::text AS price_in_wei,
+    t.operation_id::text AS operation_id
+  FROM indexer_evm_bnb_testnet.raw_oapp_token_registered_externally t
+
+  UNION ALL
+
+  SELECT
+    'bnb-testnet'::text AS chain,
+    'token_liquidity_initialized_externally'::text AS operation_type,
+    t.evt_block_number,
+    t.evt_block_time,
+    t.evt_tx_hash AS src_trx,
+    t.evt_index,
+    t.token_id,
+    t.src_eid::text AS src_eid,
+    t.dst_eid::text AS dst_eid,
+    t.amount::text AS amount,
+    t.price_in_wei::text AS price_in_wei,
+    NULL::text AS operation_id
+  FROM indexer_evm_bnb_testnet.raw_oapp_token_liquidity_initialized_externally t
+)
+SELECT
+  s.chain,
+  s.operation_type,
+  s.evt_block_number,
+  s.evt_block_time,
+  s.src_trx,
+  s.evt_index,
+  s.token_id,
+  s.src_eid,
+  s.dst_eid,
+  s.amount,
+  s.price_in_wei,
+  s.operation_id,
+  (c.id IS NOT NULL) AS is_tracked,
+  c.id AS cross_chain_transaction_id,
+  c.status AS progress_status,
+  c.sent_at,
+  c.last_checked_at,
+  c.last_clearing_attempt_at,
+  c.clearing_attempts,
+  c.delivered_tx_hash,
+  c.cleared_tx_signature,
+  c.lz_guid,
+  c.lz_nonce,
+  c.error_message,
+  c.payload_size,
+  c.compute_units_used,
+  c.created_at AS tracked_created_at,
+  c.updated_at AS tracked_updated_at
+FROM source_events s
+LEFT JOIN public.cross_chain_transactions c
+  ON lower(c.src_tx_hash) = lower(s.src_trx)
+ AND c.src_eid::text = s.src_eid
+ AND c.dst_eid::text = s.dst_eid;
+
+REVOKE ALL ON TABLE indexer.vw_cross_chain_transaction_progress FROM anon;
+REVOKE ALL ON TABLE indexer.vw_cross_chain_transaction_progress FROM authenticated;
+GRANT SELECT ON TABLE indexer.vw_cross_chain_transaction_progress TO service_role;
+
 CREATE OR REPLACE VIEW indexer.vw_token_transfers AS
 SELECT
   chain,
@@ -490,7 +597,10 @@ REVOKE ALL ON TABLE indexer.vw_uniswap_v3_lp_withdrawals FROM anon;
 REVOKE ALL ON TABLE indexer.vw_uniswap_v3_lp_withdrawals FROM authenticated;
 GRANT SELECT ON TABLE indexer.vw_uniswap_v3_lp_withdrawals TO service_role;
 
-CREATE OR REPLACE VIEW indexer.vw_launchpad_graduations AS
+DROP VIEW IF EXISTS public.vw_launchpad_graduations;
+DROP VIEW IF EXISTS indexer.vw_launchpad_graduations;
+
+CREATE VIEW indexer.vw_launchpad_graduations AS
 SELECT
   'base-sepolia'::text AS chain,
   t.evt_block_number,
@@ -498,7 +608,6 @@ SELECT
   t.evt_tx_hash,
   t.evt_index,
   t.token_layer_id,
-  t.token_id,
   t.token_address,
   t.is_external,
   t.final_supply::text AS final_supply,
@@ -516,7 +625,6 @@ SELECT
   t.evt_tx_hash,
   t.evt_index,
   t.token_layer_id,
-  t.token_id,
   t.token_address,
   t.is_external,
   t.final_supply::text AS final_supply,
@@ -680,6 +788,10 @@ SELECT
   s.price_change_1h_abs::text AS price_change_1h_abs,
   s.price_change_6h_abs::text AS price_change_6h_abs,
   s.price_change_24h_abs::text AS price_change_24h_abs,
+  s.total_volume_token::text AS total_volume_token,
+  s.total_volume_token_raw::text AS total_volume_token_raw,
+  s.total_volume_usd::text AS total_volume_usd,
+  s.total_volume_usd_raw::text AS total_volume_usd_raw,
   s.volume_usd_5m::text AS volume_usd_5m,
   s.volume_usd_1h::text AS volume_usd_1h,
   s.volume_usd_6h::text AS volume_usd_6h,
@@ -747,6 +859,10 @@ SELECT
   s.price_change_1h_abs::text AS price_change_1h_abs,
   s.price_change_6h_abs::text AS price_change_6h_abs,
   s.price_change_24h_abs::text AS price_change_24h_abs,
+  s.total_volume_token::text AS total_volume_token,
+  s.total_volume_token_raw::text AS total_volume_token_raw,
+  s.total_volume_usd::text AS total_volume_usd,
+  s.total_volume_usd_raw::text AS total_volume_usd_raw,
   s.volume_usd_5m::text AS volume_usd_5m,
   s.volume_usd_1h::text AS volume_usd_1h,
   s.volume_usd_6h::text AS volume_usd_6h,
@@ -794,7 +910,13 @@ REVOKE ALL ON TABLE indexer.vw_token_stats_current FROM anon;
 REVOKE ALL ON TABLE indexer.vw_token_stats_current FROM authenticated;
 GRANT SELECT ON TABLE indexer.vw_token_stats_current TO service_role;
 
-CREATE OR REPLACE VIEW indexer.vw_token_activity AS
+DROP VIEW IF EXISTS public.vw_token_activity_desc;
+DROP VIEW IF EXISTS indexer.vw_token_activity_desc;
+DROP VIEW IF EXISTS public.vw_token_activity;
+DROP VIEW IF EXISTS indexer.vw_token_activity;
+
+CREATE VIEW indexer.vw_token_activity AS
+WITH activity_union AS (
 SELECT
   'base-sepolia'::text AS chain,
   a.activity_type,
@@ -804,9 +926,10 @@ SELECT
   a.tx_hash,
   a.evt_index,
   a.token_layer_id,
-  a.token_id,
   a.token_address,
   a.wallet,
+  a.trader,
+  a.receiver,
   a.from_address,
   a.to_address,
   a.token_amount_decimal::text AS token_amount,
@@ -850,9 +973,10 @@ SELECT
   a.tx_hash,
   a.evt_index,
   a.token_layer_id,
-  a.token_id,
   a.token_address,
   a.wallet,
+  a.trader,
+  a.receiver,
   a.from_address,
   a.to_address,
   a.token_amount_decimal::text AS token_amount,
@@ -883,20 +1007,15 @@ SELECT
   a.price_usd_at_event::text AS price_usd_at_event_raw,
   a.usd_value::text AS usd_value,
   a.usd_value::text AS usd_value_raw
-FROM indexer_evm_bnb_testnet.vw_token_activity a;
+FROM indexer_evm_bnb_testnet.vw_token_activity a
+)
+SELECT *
+FROM activity_union
+ORDER BY evt_block_time DESC NULLS LAST, chain ASC, evt_block_number DESC, evt_index DESC, tx_hash DESC;
 
 REVOKE ALL ON TABLE indexer.vw_token_activity FROM anon;
 REVOKE ALL ON TABLE indexer.vw_token_activity FROM authenticated;
 GRANT SELECT ON TABLE indexer.vw_token_activity TO service_role;
-
-CREATE OR REPLACE VIEW indexer.vw_token_activity_desc AS
-SELECT *
-FROM indexer.vw_token_activity
-ORDER BY evt_block_number DESC, evt_index DESC;
-
-REVOKE ALL ON TABLE indexer.vw_token_activity_desc FROM anon;
-REVOKE ALL ON TABLE indexer.vw_token_activity_desc FROM authenticated;
-GRANT SELECT ON TABLE indexer.vw_token_activity_desc TO service_role;
 
 -- Public-schema mirrors (same shape, single-source logic from indexer schema)
 CREATE OR REPLACE VIEW public.vw_token_trades AS
@@ -922,6 +1041,12 @@ SELECT * FROM indexer.vw_token_transfers_cross_chain;
 REVOKE ALL ON TABLE public.vw_token_transfers_cross_chain FROM anon;
 REVOKE ALL ON TABLE public.vw_token_transfers_cross_chain FROM authenticated;
 GRANT SELECT ON TABLE public.vw_token_transfers_cross_chain TO service_role;
+
+CREATE OR REPLACE VIEW public.vw_cross_chain_transaction_progress AS
+SELECT * FROM indexer.vw_cross_chain_transaction_progress;
+REVOKE ALL ON TABLE public.vw_cross_chain_transaction_progress FROM anon;
+REVOKE ALL ON TABLE public.vw_cross_chain_transaction_progress FROM authenticated;
+GRANT SELECT ON TABLE public.vw_cross_chain_transaction_progress TO service_role;
 
 CREATE OR REPLACE VIEW public.vw_token_transfers AS
 SELECT * FROM indexer.vw_token_transfers;
@@ -982,12 +1107,6 @@ SELECT * FROM indexer.vw_token_activity;
 REVOKE ALL ON TABLE public.vw_token_activity FROM anon;
 REVOKE ALL ON TABLE public.vw_token_activity FROM authenticated;
 GRANT SELECT ON TABLE public.vw_token_activity TO service_role;
-
-CREATE OR REPLACE VIEW public.vw_token_activity_desc AS
-SELECT * FROM indexer.vw_token_activity_desc;
-REVOKE ALL ON TABLE public.vw_token_activity_desc FROM anon;
-REVOKE ALL ON TABLE public.vw_token_activity_desc FROM authenticated;
-GRANT SELECT ON TABLE public.vw_token_activity_desc TO service_role;
 
 CREATE VIEW public.vw_token_stats_current AS
 SELECT * FROM indexer.vw_token_stats_current;
