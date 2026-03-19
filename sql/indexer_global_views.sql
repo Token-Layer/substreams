@@ -1092,6 +1092,53 @@ SELECT
   a.usd_value::text AS usd_value,
   a.usd_value::text AS usd_value_raw
 FROM indexer_evm_bnb_testnet.vw_token_activity a
+
+UNION ALL
+
+SELECT
+  'solana-devnet'::text AS chain,
+  a.activity_type,
+  a.activity_subtype,
+  a.evt_block_number,
+  a.evt_block_time,
+  a.tx_hash,
+  a.evt_index,
+  a.token_layer_id,
+  a.token_address,
+  a.wallet,
+  NULL::text AS trader,
+  NULL::text AS receiver,
+  a.from_address,
+  a.to_address,
+  a.token_amount::text AS token_amount,
+  a.token_amount_raw::text AS token_amount_raw,
+  a.usd_amount::text AS usd_amount,
+  a.usd_amount_raw::text AS usd_amount_raw,
+  a.price_usd::text AS price_usd,
+  a.price_usd::text AS price_usd_raw,
+  a.market_cap_usd::text AS market_cap_usd,
+  a.market_cap_usd::text AS market_cap_usd_raw,
+  a.pool,
+  a.liquidity_amount::text AS liquidity_amount,
+  a.liquidity_amount::text AS liquidity_amount_raw,
+  a.amount0::text AS amount0,
+  a.amount0::text AS amount0_raw,
+  a.amount1::text AS amount1,
+  a.amount1::text AS amount1_raw,
+  a.guid,
+  a.src_eid::text AS src_eid,
+  a.dst_eid::text AS dst_eid,
+  NULL::boolean AS is_external,
+  NULL::text AS final_supply,
+  NULL::text AS final_supply_raw,
+  NULL::text AS final_reserves,
+  NULL::text AS final_reserves_raw,
+  NULL::text AS token_decimals,
+  a.price_usd_at_event::text AS price_usd_at_event,
+  a.price_usd_at_event::text AS price_usd_at_event_raw,
+  a.usd_value::text AS usd_value,
+  a.usd_value::text AS usd_value_raw
+FROM indexer_sol_solana_devnet.vw_token_activity a
 )
 SELECT *
 FROM activity_union
