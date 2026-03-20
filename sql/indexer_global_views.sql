@@ -97,7 +97,20 @@ SELECT
   t.token_layer_id,
   t.balance::text AS balance,
   t.balance::text AS balance_raw
-FROM indexer_evm_bnb_testnet.cur_wallet_token_balance t;
+FROM indexer_evm_bnb_testnet.cur_wallet_token_balance t
+
+UNION ALL
+
+SELECT
+  'solana-devnet'::text AS chain,
+  t.evt_block_number,
+  t.evt_block_time,
+  t.wallet,
+  t.token_address,
+  t.token_layer_id,
+  t.balance::text AS balance,
+  t.balance::text AS balance_raw
+FROM indexer_sol_solana_devnet.cur_wallet_token_balance t;
 
 -- Service-role-only access
 REVOKE ALL ON TABLE indexer.vw_wallet_token_balances_current FROM anon;
