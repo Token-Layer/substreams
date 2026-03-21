@@ -1153,7 +1153,32 @@ SELECT
   a.usd_value::text AS usd_value_raw
 FROM indexer_sol_solana_devnet.vw_token_activity a
 )
-SELECT *
+SELECT
+  CASE
+    WHEN activity_type = 'trade' THEN
+      concat_ws(':', chain, tx_hash, evt_index::text, COALESCE(activity_subtype, ''), COALESCE(token_layer_id, ''))
+    WHEN activity_type = 'transfer' AND activity_subtype = 'local' THEN
+      concat_ws(':', chain, tx_hash, evt_index::text, COALESCE(token_layer_id, ''), COALESCE(token_address, ''))
+    WHEN activity_type = 'transfer' AND activity_subtype = 'cross_chain_sent' THEN
+      concat_ws(':', chain, tx_hash, evt_index::text, COALESCE(guid, ''), 'sent')
+    WHEN activity_type = 'transfer' AND activity_subtype = 'cross_chain_received' THEN
+      concat_ws(':', chain, tx_hash, evt_index::text, COALESCE(guid, ''), 'received')
+    WHEN activity_type = 'lp' AND activity_subtype = 'deposit' THEN
+      concat_ws(':', chain, tx_hash, evt_index::text, COALESCE(pool, ''), 'mint')
+    WHEN activity_type = 'lp' AND activity_subtype = 'withdrawal' THEN
+      concat_ws(':', chain, tx_hash, evt_index::text, COALESCE(pool, ''), 'burn')
+    WHEN activity_type = 'lifecycle' AND activity_subtype = 'token_created' THEN
+      concat_ws(':', chain, tx_hash, evt_index::text, COALESCE(token_layer_id, ''), 'token_created')
+    WHEN activity_type = 'lifecycle' AND activity_subtype = 'token_registered' THEN
+      concat_ws(':', chain, tx_hash, evt_index::text, COALESCE(token_layer_id, ''), 'token_registered')
+    WHEN activity_type = 'lifecycle' AND activity_subtype = 'external_token_created' THEN
+      concat_ws(':', chain, tx_hash, evt_index::text, COALESCE(token_layer_id, ''), 'external_token_created')
+    WHEN activity_type = 'lifecycle' AND activity_subtype = 'graduation' THEN
+      concat_ws(':', chain, tx_hash, evt_index::text, COALESCE(token_layer_id, ''), 'graduation')
+    ELSE
+      concat_ws(':', chain, COALESCE(activity_type, ''), COALESCE(activity_subtype, ''), COALESCE(tx_hash, ''), evt_index::text)
+  END AS pk,
+  activity_union.*
 FROM activity_union
 ORDER BY evt_block_time DESC NULLS LAST, chain ASC, evt_block_number DESC, evt_index DESC, tx_hash DESC;
 
@@ -1425,6 +1450,240 @@ SELECT * FROM indexer.vw_token_candles;
 REVOKE ALL ON TABLE public.vw_token_candles FROM anon;
 REVOKE ALL ON TABLE public.vw_token_candles FROM authenticated;
 GRANT SELECT ON TABLE public.vw_token_candles TO service_role;
+
+CREATE OR REPLACE FUNCTION public.get_token_candles_dense(
+  p_token_id TEXT,
+  p_candle_interval TEXT DEFAULT '15m',
+  p_venue TEXT DEFAULT NULL,
+  p_from_timestamp TIMESTAMPTZ DEFAULT NULL,
+  p_to_timestamp TIMESTAMPTZ DEFAULT NULL,
+  p_limit INTEGER DEFAULT 500,
+  p_offset INTEGER DEFAULT 0,
+  p_ascending BOOLEAN DEFAULT TRUE
+) RETURNS TABLE (
+  chain TEXT,
+  token_layer_id TEXT,
+  token_address TEXT,
+  venue TEXT,
+  candle_interval TEXT,
+  bucket_start TIMESTAMP,
+  bucket_end TIMESTAMP,
+  open_price_usd TEXT,
+  open_price_usd_raw TEXT,
+  high_price_usd TEXT,
+  high_price_usd_raw TEXT,
+  low_price_usd TEXT,
+  low_price_usd_raw TEXT,
+  close_price_usd TEXT,
+  close_price_usd_raw TEXT,
+  volume_token TEXT,
+  volume_token_raw TEXT,
+  volume_usd TEXT,
+  volume_usd_raw TEXT,
+  trade_count TEXT,
+  trade_count_raw TEXT
+)
+LANGUAGE sql
+STABLE
+AS $$
+WITH params AS (
+  SELECT
+    lower(btrim(p_token_id)) AS token_identifier,
+    COALESCE(NULLIF(btrim(p_candle_interval), ''), '15m') AS candle_interval,
+    NULLIF(btrim(p_venue), '') AS venue,
+    p_from_timestamp AS from_timestamp,
+    p_to_timestamp AS to_timestamp,
+    GREATEST(COALESCE(p_limit, 500), 1) AS limit_rows,
+    GREATEST(COALESCE(p_offset, 0), 0) AS offset_rows,
+    COALESCE(p_ascending, TRUE) AS ascending
+),
+interval_config AS (
+  SELECT
+    params.*,
+    CASE
+      WHEN params.from_timestamp IS NULL THEN NULL::timestamp
+      ELSE params.from_timestamp AT TIME ZONE 'UTC'
+    END AS from_timestamp_utc,
+    CASE
+      WHEN params.to_timestamp IS NULL THEN NULL::timestamp
+      ELSE params.to_timestamp AT TIME ZONE 'UTC'
+    END AS to_timestamp_utc,
+    CASE params.candle_interval
+      WHEN '1m' THEN INTERVAL '1 minute'
+      WHEN '5m' THEN INTERVAL '5 minutes'
+      WHEN '15m' THEN INTERVAL '15 minutes'
+      WHEN '1h' THEN INTERVAL '1 hour'
+      WHEN '4h' THEN INTERVAL '4 hours'
+      WHEN '1d' THEN INTERVAL '1 day'
+      ELSE INTERVAL '15 minutes'
+    END AS bucket_size
+  FROM params
+),
+filtered AS (
+  SELECT c.*
+  FROM public.vw_token_candles c
+  CROSS JOIN interval_config ic
+  WHERE c.candle_interval = ic.candle_interval
+    AND (
+      lower(COALESCE(c.token_layer_id, '')) = ic.token_identifier
+      OR lower(COALESCE(c.token_address, '')) = ic.token_identifier
+    )
+    AND (ic.venue IS NULL OR c.venue = ic.venue)
+),
+partitions AS (
+  SELECT
+    f.chain,
+    f.token_layer_id,
+    f.token_address,
+    f.venue,
+    f.candle_interval,
+    MIN(f.bucket_start) AS min_bucket_start,
+    MAX(f.bucket_start) AS max_bucket_start
+  FROM filtered f
+  GROUP BY f.chain, f.token_layer_id, f.token_address, f.venue, f.candle_interval
+),
+bounds AS (
+  SELECT
+    p.chain,
+    p.token_layer_id,
+    p.token_address,
+    p.venue,
+    p.candle_interval,
+    ic.bucket_size,
+    CASE
+      WHEN ic.from_timestamp_utc IS NOT NULL THEN GREATEST(
+        date_bin(ic.bucket_size, ic.from_timestamp_utc, TIMESTAMP '2001-01-01'),
+        p.min_bucket_start
+      )
+      WHEN ic.ascending THEN p.min_bucket_start + (ic.offset_rows * ic.bucket_size)
+      ELSE GREATEST(
+        p.max_bucket_start - ((ic.offset_rows + ic.limit_rows - 1) * ic.bucket_size),
+        p.min_bucket_start
+      )
+    END AS start_bucket,
+    CASE
+      WHEN ic.to_timestamp_utc IS NOT NULL THEN LEAST(
+        date_bin(ic.bucket_size, ic.to_timestamp_utc, TIMESTAMP '2001-01-01'),
+        p.max_bucket_start
+      )
+      WHEN ic.ascending THEN LEAST(
+        p.min_bucket_start + ((ic.offset_rows + ic.limit_rows - 1) * ic.bucket_size),
+        p.max_bucket_start
+      )
+      ELSE p.max_bucket_start - (ic.offset_rows * ic.bucket_size)
+    END AS end_bucket,
+    ic.ascending,
+    ic.limit_rows,
+    ic.offset_rows,
+    (ic.from_timestamp IS NULL AND ic.to_timestamp IS NULL) AS paging_baked_into_bounds
+  FROM partitions p
+  CROSS JOIN interval_config ic
+),
+series AS (
+  SELECT
+    b.chain,
+    b.token_layer_id,
+    b.token_address,
+    b.venue,
+    b.candle_interval,
+    b.bucket_size,
+    b.ascending,
+    b.limit_rows,
+    b.offset_rows,
+    b.paging_baked_into_bounds,
+    gs.bucket_start
+  FROM bounds b
+  CROSS JOIN LATERAL generate_series(b.start_bucket, b.end_bucket, b.bucket_size) AS gs(bucket_start)
+  WHERE b.start_bucket <= b.end_bucket
+),
+resolved AS (
+  SELECT
+    s.chain,
+    s.token_layer_id,
+    s.token_address,
+    s.venue,
+    s.candle_interval,
+    s.bucket_start,
+    (s.bucket_start + s.bucket_size)::timestamp AS bucket_end,
+    COALESCE(cur.open_price_usd, prev.close_price_usd) AS open_price_usd,
+    COALESCE(cur.high_price_usd, prev.close_price_usd) AS high_price_usd,
+    COALESCE(cur.low_price_usd, prev.close_price_usd) AS low_price_usd,
+    COALESCE(cur.close_price_usd, prev.close_price_usd) AS close_price_usd,
+    COALESCE(cur.volume_token, '0') AS volume_token,
+    COALESCE(cur.volume_usd, '0') AS volume_usd,
+    COALESCE(cur.trade_count, '0') AS trade_count,
+    s.ascending,
+    s.limit_rows,
+    s.offset_rows,
+    s.paging_baked_into_bounds
+  FROM series s
+  LEFT JOIN filtered cur
+    ON cur.chain = s.chain
+   AND cur.token_layer_id IS NOT DISTINCT FROM s.token_layer_id
+   AND cur.token_address IS NOT DISTINCT FROM s.token_address
+   AND cur.venue IS NOT DISTINCT FROM s.venue
+   AND cur.candle_interval = s.candle_interval
+   AND cur.bucket_start = s.bucket_start
+  LEFT JOIN LATERAL (
+    SELECT f.close_price_usd
+    FROM filtered f
+    WHERE f.chain = s.chain
+      AND f.token_layer_id IS NOT DISTINCT FROM s.token_layer_id
+      AND f.token_address IS NOT DISTINCT FROM s.token_address
+      AND f.venue IS NOT DISTINCT FROM s.venue
+      AND f.candle_interval = s.candle_interval
+      AND f.bucket_start <= s.bucket_start
+    ORDER BY f.bucket_start DESC
+    LIMIT 1
+  ) prev ON TRUE
+),
+ordered AS (
+  SELECT
+    r.*,
+    ROW_NUMBER() OVER (
+      ORDER BY
+        CASE WHEN r.ascending THEN r.bucket_start END ASC,
+        CASE WHEN NOT r.ascending THEN r.bucket_start END DESC
+    ) AS row_num
+  FROM resolved r
+  WHERE r.open_price_usd IS NOT NULL
+)
+SELECT
+  r.chain,
+  r.token_layer_id,
+  r.token_address,
+  r.venue,
+  r.candle_interval,
+  r.bucket_start,
+  r.bucket_end,
+  r.open_price_usd,
+  r.open_price_usd AS open_price_usd_raw,
+  r.high_price_usd,
+  r.high_price_usd AS high_price_usd_raw,
+  r.low_price_usd,
+  r.low_price_usd AS low_price_usd_raw,
+  r.close_price_usd,
+  r.close_price_usd AS close_price_usd_raw,
+  r.volume_token,
+  r.volume_token AS volume_token_raw,
+  r.volume_usd,
+  r.volume_usd AS volume_usd_raw,
+  r.trade_count,
+  r.trade_count AS trade_count_raw
+FROM ordered r
+WHERE r.paging_baked_into_bounds
+   OR (
+     r.row_num > (SELECT offset_rows FROM params)
+     AND r.row_num <= ((SELECT offset_rows FROM params) + (SELECT limit_rows FROM params))
+   )
+ORDER BY
+  CASE WHEN r.ascending THEN r.bucket_start END ASC,
+  CASE WHEN NOT r.ascending THEN r.bucket_start END DESC;
+$$;
+
+REVOKE ALL ON FUNCTION public.get_token_candles_dense(TEXT, TEXT, TEXT, TIMESTAMPTZ, TIMESTAMPTZ, INTEGER, INTEGER, BOOLEAN) FROM anon;
+REVOKE ALL ON FUNCTION public.get_token_candles_dense(TEXT, TEXT, TEXT, TIMESTAMPTZ, TIMESTAMPTZ, INTEGER, INTEGER, BOOLEAN) FROM authenticated;
+GRANT EXECUTE ON FUNCTION public.get_token_candles_dense(TEXT, TEXT, TEXT, TIMESTAMPTZ, TIMESTAMPTZ, INTEGER, INTEGER, BOOLEAN) TO service_role;
 
 CREATE OR REPLACE VIEW public.vw_fee_leaderboard_by_chain AS
 SELECT * FROM indexer.vw_fee_leaderboard_by_chain;
