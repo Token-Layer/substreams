@@ -803,8 +803,15 @@ SELECT
   l.balance::text AS balance,
   l.balance_raw::text AS balance_raw,
   l.evt_block_number,
-  l.evt_block_time
+  l.evt_block_time,
+  uw.user_id,
+  up.username,
+  up.profile_picture
 FROM indexer_evm_base_sepolia.vw_fee_leaderboard_current l
+LEFT JOIN public.user_wallets uw
+  ON lower(uw.address) = lower(l.wallet)
+LEFT JOIN public.user_profiles up
+  ON up.id = uw.user_id
 
 UNION ALL
 
@@ -816,8 +823,15 @@ SELECT
   l.balance::text AS balance,
   l.balance_raw::text AS balance_raw,
   l.evt_block_number,
-  l.evt_block_time
-FROM indexer_evm_bnb_testnet.vw_fee_leaderboard_current l;
+  l.evt_block_time,
+  uw.user_id,
+  up.username,
+  up.profile_picture
+FROM indexer_evm_bnb_testnet.vw_fee_leaderboard_current l
+LEFT JOIN public.user_wallets uw
+  ON lower(uw.address) = lower(l.wallet)
+LEFT JOIN public.user_profiles up
+  ON up.id = uw.user_id;
 
 REVOKE ALL ON TABLE indexer.vw_fee_leaderboard_by_chain FROM anon;
 REVOKE ALL ON TABLE indexer.vw_fee_leaderboard_by_chain FROM authenticated;
@@ -855,8 +869,15 @@ SELECT
   balance::text AS balance,
   balance_raw::text AS balance_raw,
   evt_block_number,
-  evt_block_time
-FROM ranked;
+  evt_block_time,
+  uw.user_id,
+  up.username,
+  up.profile_picture
+FROM ranked
+LEFT JOIN public.user_wallets uw
+  ON lower(uw.address) = lower(ranked.wallet)
+LEFT JOIN public.user_profiles up
+  ON up.id = uw.user_id;
 
 REVOKE ALL ON TABLE indexer.vw_fee_leaderboard_current FROM anon;
 REVOKE ALL ON TABLE indexer.vw_fee_leaderboard_current FROM authenticated;
