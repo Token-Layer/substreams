@@ -1848,7 +1848,8 @@ CREATE TABLE IF NOT EXISTS "cur_user_fee_balance" (
   "evt_block_time" TIMESTAMP,
   "account" TEXT,
   "currency" TEXT,
-  "balance" NUMERIC
+  "balance" NUMERIC,
+  "total_received" NUMERIC
 );
 CREATE INDEX IF NOT EXISTS "idx_user_fee_balance_current_account" ON "cur_user_fee_balance" ("account");
 CREATE INDEX IF NOT EXISTS "idx_user_fee_balance_current_currency" ON "cur_user_fee_balance" ("currency");

@@ -85,6 +85,13 @@ modules:
     valueType: bigint
     inputs:
       - source: sf.ethereum.type.v2.Block
+  - name: store_user_fee_received_totals
+    kind: store
+    initialBlock: 96421816
+    updatePolicy: add
+    valueType: bigint
+    inputs:
+      - source: sf.ethereum.type.v2.Block
   - name: store_protocol_fee_balances
     kind: store
     initialBlock: 96421816
@@ -106,6 +113,7 @@ modules:
       - store: store_uniswap_v3_pool_meta
       - store: store_wallet_token_balances
       - store: store_user_fee_balances
+      - store: store_user_fee_received_totals
       - store: store_protocol_fee_balances
     output:
       type: proto:contract.v1.Events

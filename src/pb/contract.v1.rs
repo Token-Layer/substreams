@@ -2363,6 +2363,8 @@ pub struct UserFeeBalanceCurrent {
     pub currency: ::prost::alloc::string::String,
     #[prost(string, tag="5")]
     pub balance: ::prost::alloc::string::String,
+    #[prost(string, tag="6")]
+    pub total_received: ::prost::alloc::string::String,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]

@@ -1209,6 +1209,7 @@ message UserFeeBalanceCurrent {
     string account = 3;
     string currency = 4;
     string balance = 5;
+    string total_received = 6;
 }
 
 message ProtocolFeeBalanceCurrent {

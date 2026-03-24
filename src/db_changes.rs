@@ -2374,6 +2374,7 @@ pub fn events_to_database_changes(
         row.set("account", evt.account);
         row.set("currency", evt.currency);
         row.set("balance", evt.balance);
+        row.set("total_received", evt.total_received);
     }
 
     for evt in events.protocol_fee_balance_currents.into_iter() {

@@ -3822,6 +3822,7 @@ fn map_wallet_token_balance_events(
 fn map_fee_balance_events(
     blk: &eth::Block,
     user_fee_balances_store: &store::StoreGetBigInt,
+    user_fee_received_totals_store: &store::StoreGetBigInt,
     protocol_fee_balances_store: &store::StoreGetBigInt,
     events: &mut contract::Events,
 ) {
@@ -3866,6 +3867,9 @@ fn map_fee_balance_events(
             continue;
         }
         if let Some(balance) = user_fee_balances_store.get_at(ordinal, key) {
+            let total_received = user_fee_received_totals_store
+                .get_at(ordinal, format!("{}:{}", account, currency))
+                .unwrap_or_else(|| substreams::scalar::BigInt::from(0));
             events
                 .user_fee_balance_currents
                 .push(contract::UserFeeBalanceCurrent {
@@ -3874,6 +3878,7 @@ fn map_fee_balance_events(
                     account: format!("0x{}", account),
                     currency: format!("0x{}", currency),
                     balance: balance.to_string(),
+                    total_received: total_received.to_string(),
                 });
         }
     }
@@ -4482,6 +4487,24 @@ fn store_user_fee_balances(blk: eth::Block, store: StoreAddBigInt) {
 }
 
 #[substreams::handlers::store]
+fn store_user_fee_received_totals(blk: eth::Block, store: StoreAddBigInt) {
+    for rcpt in blk.receipts() {
+        for log in rcpt
+            .receipt
+            .logs
+            .iter()
+            .filter(|log| log.address == FEES_TRACKED_CONTRACT)
+        {
+            if let Some(event) = abi::fees_contract::events::FeeDistributed::match_and_decode(log) {
+                let key = user_fee_balance_store_key(&event.recipient, &event.currency);
+                let amount = parse_big_int_or_zero(&event.amount.to_string());
+                store.add(log.ordinal, key, &amount);
+            }
+        }
+    }
+}
+
+#[substreams::handlers::store]
 fn store_protocol_fee_balances(blk: eth::Block, store: StoreAddBigInt) {
     for rcpt in blk.receipts() {
         for log in rcpt
@@ -4720,6 +4743,7 @@ fn map_events(
     store_uniswap_pool_meta: StoreGetString,
     store_wallet_balances: StoreGetBigInt,
     store_user_fee_balances: StoreGetBigInt,
+    store_user_fee_received_totals: StoreGetBigInt,
     store_protocol_fee_balances: StoreGetBigInt,
 ) -> Result<contract::Events, substreams::errors::Error> {
     let uniswap_v3_factory = resolve_uniswap_factory_address(&params);
@@ -4766,6 +4790,7 @@ fn map_events(
     map_fee_balance_events(
         &blk,
         &store_user_fee_balances,
+        &store_user_fee_received_totals,
         &store_protocol_fee_balances,
         &mut events,
     );
