@@ -1869,6 +1869,54 @@ REVOKE ALL ON TABLE public.vw_fee_leaderboard_current FROM anon;
 REVOKE ALL ON TABLE public.vw_fee_leaderboard_current FROM authenticated;
 GRANT SELECT ON TABLE public.vw_fee_leaderboard_current TO service_role;
 
+CREATE OR REPLACE VIEW public.vw_user_fee_balances_current AS
+SELECT
+  uw.user_id,
+  b.account,
+  b.token_key,
+  b.token_layer_id,
+  b.token_name,
+  b.token_symbol,
+  b.balance,
+  b.total_received,
+  b.per_chain_balances,
+  b.last_updated_at
+FROM indexer.vw_user_fee_balances_current b
+JOIN public.user_wallets uw
+  ON lower(uw.address) = lower(b.account);
+REVOKE ALL ON TABLE public.vw_user_fee_balances_current FROM anon;
+REVOKE ALL ON TABLE public.vw_user_fee_balances_current FROM authenticated;
+GRANT SELECT ON TABLE public.vw_user_fee_balances_current TO service_role;
+
+CREATE OR REPLACE VIEW public.vw_user_fee_distribution_history_by_chain AS
+SELECT
+  uw.user_id,
+  h.chain,
+  h.evt_block_number,
+  h.evt_block_time,
+  h.evt_tx_hash,
+  h.evt_index,
+  h.account,
+  h.currency,
+  h.token_layer_id,
+  h.token_address,
+  h.token_name,
+  h.token_symbol,
+  h.token_decimals,
+  h.amount,
+  h.amount_raw,
+  h.distribution_type,
+  h.distribution_name,
+  h.tracking_id,
+  h.activity_id,
+  h.activity_name
+FROM indexer.vw_user_fee_distribution_history_by_chain h
+JOIN public.user_wallets uw
+  ON lower(uw.address) = lower(h.account);
+REVOKE ALL ON TABLE public.vw_user_fee_distribution_history_by_chain FROM anon;
+REVOKE ALL ON TABLE public.vw_user_fee_distribution_history_by_chain FROM authenticated;
+GRANT SELECT ON TABLE public.vw_user_fee_distribution_history_by_chain TO service_role;
+
 CREATE OR REPLACE VIEW public.vw_token_activity AS
 SELECT * FROM indexer.vw_token_activity;
 REVOKE ALL ON TABLE public.vw_token_activity FROM anon;
