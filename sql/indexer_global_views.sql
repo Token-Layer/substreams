@@ -883,6 +883,157 @@ REVOKE ALL ON TABLE indexer.vw_fee_leaderboard_current FROM anon;
 REVOKE ALL ON TABLE indexer.vw_fee_leaderboard_current FROM authenticated;
 GRANT SELECT ON TABLE indexer.vw_fee_leaderboard_current TO service_role;
 
+CREATE OR REPLACE VIEW indexer.vw_user_fee_balances_by_chain AS
+SELECT
+  'base-sepolia'::text AS chain,
+  b.account,
+  b.currency,
+  b.token_layer_id,
+  b.token_address,
+  b.token_name,
+  b.token_symbol,
+  b.token_decimals,
+  b.balance::text AS balance,
+  b.balance_raw::text AS balance_raw,
+  b.total_received::text AS total_received,
+  b.total_received_raw::text AS total_received_raw,
+  b.evt_block_number,
+  b.evt_block_time
+FROM indexer_evm_base_sepolia.vw_user_fee_balances_current b
+
+UNION ALL
+
+SELECT
+  'bnb-testnet'::text AS chain,
+  b.account,
+  b.currency,
+  b.token_layer_id,
+  b.token_address,
+  b.token_name,
+  b.token_symbol,
+  b.token_decimals,
+  b.balance::text AS balance,
+  b.balance_raw::text AS balance_raw,
+  b.total_received::text AS total_received,
+  b.total_received_raw::text AS total_received_raw,
+  b.evt_block_number,
+  b.evt_block_time
+FROM indexer_evm_bnb_testnet.vw_user_fee_balances_current b;
+
+REVOKE ALL ON TABLE indexer.vw_user_fee_balances_by_chain FROM anon;
+REVOKE ALL ON TABLE indexer.vw_user_fee_balances_by_chain FROM authenticated;
+GRANT SELECT ON TABLE indexer.vw_user_fee_balances_by_chain TO service_role;
+
+CREATE OR REPLACE VIEW indexer.vw_user_fee_balances_current AS
+WITH grouped AS (
+  SELECT
+    account,
+    COALESCE(token_layer_id, lower(currency)) AS token_key,
+    MIN(token_layer_id) AS token_layer_id,
+    MAX(token_name) AS token_name,
+    MAX(token_symbol) AS token_symbol,
+    CASE
+      WHEN COUNT(*) FILTER (WHERE balance IS NULL) > 0 THEN NULL::numeric
+      ELSE SUM(balance::numeric)::numeric
+    END AS balance,
+    CASE
+      WHEN COUNT(*) FILTER (WHERE total_received IS NULL) > 0 THEN NULL::numeric
+      ELSE SUM(total_received::numeric)::numeric
+    END AS total_received,
+    MAX(evt_block_time) AS last_updated_at
+  FROM indexer.vw_user_fee_balances_by_chain
+  GROUP BY account, COALESCE(token_layer_id, lower(currency))
+),
+per_chain AS (
+  SELECT
+    account,
+    COALESCE(token_layer_id, lower(currency)) AS token_key,
+    jsonb_object_agg(
+      chain,
+      jsonb_build_object(
+        'currency', lower(currency),
+        'token_decimals', token_decimals,
+        'balance', balance,
+        'balance_raw', balance_raw,
+        'total_received', total_received,
+        'total_received_raw', total_received_raw,
+        'last_updated_at', evt_block_time
+      )
+      ORDER BY chain
+    ) AS per_chain_balances
+  FROM indexer.vw_user_fee_balances_by_chain
+  GROUP BY account, COALESCE(token_layer_id, lower(currency))
+)
+SELECT
+  g.account,
+  g.token_key,
+  g.token_layer_id,
+  g.token_name,
+  g.token_symbol,
+  g.balance::text AS balance,
+  g.total_received::text AS total_received,
+  p.per_chain_balances,
+  g.last_updated_at
+FROM grouped g
+LEFT JOIN per_chain p
+  ON p.account = g.account
+ AND p.token_key = g.token_key;
+
+REVOKE ALL ON TABLE indexer.vw_user_fee_balances_current FROM anon;
+REVOKE ALL ON TABLE indexer.vw_user_fee_balances_current FROM authenticated;
+GRANT SELECT ON TABLE indexer.vw_user_fee_balances_current TO service_role;
+
+CREATE OR REPLACE VIEW indexer.vw_user_fee_distribution_history_by_chain AS
+SELECT
+  'base-sepolia'::text AS chain,
+  h.evt_block_number,
+  h.evt_block_time,
+  h.evt_tx_hash,
+  h.evt_index,
+  h.account,
+  h.currency,
+  h.token_layer_id,
+  h.token_address,
+  h.token_name,
+  h.token_symbol,
+  h.token_decimals,
+  h.amount::text AS amount,
+  h.amount_raw::text AS amount_raw,
+  h.distribution_type,
+  h.distribution_name,
+  h.tracking_id,
+  h.activity_id,
+  h.activity_name
+FROM indexer_evm_base_sepolia.vw_user_fee_distribution_history h
+
+UNION ALL
+
+SELECT
+  'bnb-testnet'::text AS chain,
+  h.evt_block_number,
+  h.evt_block_time,
+  h.evt_tx_hash,
+  h.evt_index,
+  h.account,
+  h.currency,
+  h.token_layer_id,
+  h.token_address,
+  h.token_name,
+  h.token_symbol,
+  h.token_decimals,
+  h.amount::text AS amount,
+  h.amount_raw::text AS amount_raw,
+  h.distribution_type,
+  h.distribution_name,
+  h.tracking_id,
+  h.activity_id,
+  h.activity_name
+FROM indexer_evm_bnb_testnet.vw_user_fee_distribution_history h;
+
+REVOKE ALL ON TABLE indexer.vw_user_fee_distribution_history_by_chain FROM anon;
+REVOKE ALL ON TABLE indexer.vw_user_fee_distribution_history_by_chain FROM authenticated;
+GRANT SELECT ON TABLE indexer.vw_user_fee_distribution_history_by_chain TO service_role;
+
 CREATE VIEW indexer.vw_token_stats_current AS
 SELECT
   'base-sepolia'::text AS chain,

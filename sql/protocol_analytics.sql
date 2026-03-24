@@ -505,7 +505,7 @@ CREATE VIEW "vw_token_activity" AS
 WITH cfg AS (
   SELECT
     COALESCE(MAX(CASE WHEN key = 'default_token_decimals' THEN value END)::numeric, 18::numeric) AS default_token_decimals,
-    COALESCE(lower(replace(MAX(CASE WHEN key = 'usd_token_address' THEN value END), '0x', '')), '') AS usd_token_address,
+    COALESCE(regexp_replace(lower(btrim(MAX(CASE WHEN key = 'usd_token_address' THEN value END))), '^0x', ''), '') AS usd_token_address,
     COALESCE(MAX(CASE WHEN key = 'usd_token_decimals' THEN value END)::numeric, 6::numeric) AS usd_token_decimals
   FROM "cfg_indexer_config"
 ),
@@ -1943,22 +1943,189 @@ DROP VIEW IF EXISTS indexer.vw_fee_leaderboard_current;
 DROP VIEW IF EXISTS indexer.vw_fee_leaderboard_by_chain;
 DROP VIEW IF EXISTS "vw_fee_leaderboard_current";
 DROP VIEW IF EXISTS "vw_user_fee_balances_current";
+DROP VIEW IF EXISTS "vw_user_fee_distribution_history";
 DROP VIEW IF EXISTS "vw_protocol_fee_balances_current";
 
 CREATE VIEW "vw_user_fee_balances_current" AS
 WITH cfg AS (
-  SELECT COALESCE(MAX(CASE WHEN key = 'usd_token_decimals' THEN value END)::numeric, 6::numeric) AS usd_token_decimals
+  SELECT
+    COALESCE(lower(replace(MAX(CASE WHEN key = 'usd_token_address' THEN value END), '0x', '')), '') AS usd_token_address,
+    COALESCE(MAX(CASE WHEN key = 'usd_token_decimals' THEN value END)::numeric, 6::numeric) AS usd_token_decimals
   FROM "cfg_indexer_config"
+),
+resolved AS (
+  SELECT
+    b."account",
+    b."currency",
+    b."balance"::numeric AS balance_raw,
+    b."total_received"::numeric AS total_received_raw,
+    b."evt_block_number",
+    b."evt_block_time",
+    regexp_replace(lower(btrim(b."currency")), '^0x', '') AS currency_norm,
+    d."token_layer_id",
+    d."token_address",
+    d."name" AS token_name,
+    d."symbol" AS token_symbol,
+    d."decimals"::numeric AS dim_decimals,
+    cfg.usd_token_address,
+    cfg.usd_token_decimals
+  FROM "cur_user_fee_balance" b
+  CROSS JOIN cfg
+  LEFT JOIN "dim_token" d
+    ON lower(d."token_address") = lower(b."currency")
+),
+typed AS (
+  SELECT
+    "account",
+    "currency",
+    CASE
+      WHEN usd_token_address <> '' AND currency_norm = usd_token_address THEN NULL::text
+      ELSE token_layer_id
+    END AS token_layer_id,
+    COALESCE(token_address, "currency") AS token_address,
+    CASE
+      WHEN usd_token_address <> '' AND currency_norm = usd_token_address THEN 'USD'::text
+      ELSE token_name
+    END AS token_name,
+    CASE
+      WHEN usd_token_address <> '' AND currency_norm = usd_token_address THEN 'USD'::text
+      ELSE token_symbol
+    END AS token_symbol,
+    CASE
+      WHEN usd_token_address <> '' AND currency_norm = usd_token_address THEN usd_token_decimals
+      ELSE dim_decimals
+    END AS token_decimals,
+    balance_raw,
+    total_received_raw,
+    "evt_block_number",
+    "evt_block_time"
+  FROM resolved
 )
 SELECT
   "account",
   "currency",
-  ("balance"::numeric / power(10::numeric, cfg.usd_token_decimals)) AS balance,
-  "balance"::numeric AS balance_raw,
+  token_layer_id,
+  token_address,
+  token_name,
+  token_symbol,
+  token_decimals,
+  CASE
+    WHEN token_decimals IS NULL THEN NULL::numeric
+    ELSE balance_raw / power(10::numeric, token_decimals)
+  END AS balance,
+  balance_raw,
+  CASE
+    WHEN token_decimals IS NULL THEN NULL::numeric
+    ELSE total_received_raw / power(10::numeric, token_decimals)
+  END AS total_received,
+  total_received_raw,
   "evt_block_number",
   "evt_block_time"
-FROM "cur_user_fee_balance"
-CROSS JOIN cfg;
+FROM typed;
+
+CREATE VIEW "vw_user_fee_distribution_history" AS
+WITH cfg AS (
+  SELECT
+    COALESCE(regexp_replace(lower(btrim(MAX(CASE WHEN key = 'usd_token_address' THEN value END))), '^0x', ''), '') AS usd_token_address,
+    COALESCE(MAX(CASE WHEN key = 'usd_token_decimals' THEN value END)::numeric, 6::numeric) AS usd_token_decimals
+  FROM "cfg_indexer_config"
+),
+resolved AS (
+  SELECT
+    fd."evt_block_number"::numeric AS evt_block_number,
+    fd."evt_block_time",
+    fd."evt_tx_hash",
+    fd."evt_index"::numeric AS evt_index,
+    fd."recipient" AS account,
+    fd."currency",
+    fd."amount"::numeric AS amount_raw,
+    fd."distribution_type"::numeric AS distribution_type,
+    fd."tracking_id",
+    fd."activity_id"::numeric AS activity_id,
+    regexp_replace(lower(btrim(fd."currency")), '^0x', '') AS currency_norm,
+    d."token_layer_id",
+    d."token_address",
+    d."name" AS token_name,
+    d."symbol" AS token_symbol,
+    d."decimals"::numeric AS dim_decimals,
+    cfg.usd_token_address,
+    cfg.usd_token_decimals
+  FROM "raw_fees_fee_distributed" fd
+  CROSS JOIN cfg
+  LEFT JOIN "dim_token" d
+    ON lower(d."token_address") = lower(fd."currency")
+),
+typed AS (
+  SELECT
+    evt_block_number,
+    evt_block_time,
+    evt_tx_hash,
+    evt_index,
+    account,
+    "currency",
+    CASE
+      WHEN usd_token_address <> '' AND currency_norm = usd_token_address THEN NULL::text
+      ELSE token_layer_id
+    END AS token_layer_id,
+    COALESCE(token_address, "currency") AS token_address,
+    CASE
+      WHEN usd_token_address <> '' AND currency_norm = usd_token_address THEN 'USD'::text
+      ELSE token_name
+    END AS token_name,
+    CASE
+      WHEN usd_token_address <> '' AND currency_norm = usd_token_address THEN 'USD'::text
+      ELSE token_symbol
+    END AS token_symbol,
+    CASE
+      WHEN usd_token_address <> '' AND currency_norm = usd_token_address THEN usd_token_decimals
+      ELSE dim_decimals
+    END AS token_decimals,
+    amount_raw,
+    distribution_type,
+    CASE distribution_type
+      WHEN 0 THEN 'Owner'
+      WHEN 1 THEN 'Builder'
+      WHEN 2 THEN 'Referral'
+      WHEN 3 THEN 'ProtocolReferral'
+      WHEN 4 THEN 'ProtocolReferralCashback'
+      ELSE 'Unknown'
+    END AS distribution_name,
+    tracking_id,
+    activity_id,
+    CASE activity_id
+      WHEN 0 THEN 'BondingCurveTrade'
+      WHEN 1 THEN 'DEXTrade'
+      WHEN 2 THEN 'TokenCreation'
+      WHEN 3 THEN 'Graduation'
+      WHEN 4 THEN 'ExternalTokenCreation'
+      WHEN 5 THEN 'CrossChainRegistration'
+      ELSE 'Unknown'
+    END AS activity_name
+  FROM resolved
+)
+SELECT
+  evt_block_number,
+  evt_block_time,
+  evt_tx_hash,
+  evt_index,
+  account,
+  "currency",
+  token_layer_id,
+  token_address,
+  token_name,
+  token_symbol,
+  token_decimals,
+  CASE
+    WHEN token_decimals IS NULL THEN NULL::numeric
+    ELSE amount_raw / power(10::numeric, token_decimals)
+  END AS amount,
+  amount_raw,
+  distribution_type,
+  distribution_name,
+  tracking_id,
+  activity_id,
+  activity_name
+FROM typed;
 
 CREATE VIEW "vw_protocol_fee_balances_current" AS
 WITH cfg AS (
@@ -1977,7 +2144,7 @@ CROSS JOIN cfg;
 CREATE VIEW "vw_fee_leaderboard_current" AS
 WITH cfg AS (
   SELECT
-    COALESCE(lower(replace(MAX(CASE WHEN key = 'usd_token_address' THEN value END), '0x', '')), '') AS usd_token_address,
+    COALESCE(regexp_replace(lower(btrim(MAX(CASE WHEN key = 'usd_token_address' THEN value END))), '^0x', ''), '') AS usd_token_address,
     COALESCE(MAX(CASE WHEN key = 'usd_token_decimals' THEN value END)::numeric, 6::numeric) AS usd_token_decimals
   FROM "cfg_indexer_config"
 ),
@@ -1993,7 +2160,7 @@ wallet_balances AS (
   WHERE b."account" IS NOT NULL
     AND b."account" <> ''
     AND cfg.usd_token_address <> ''
-    AND lower(replace(b."currency", '0x', '')) = cfg.usd_token_address
+    AND regexp_replace(lower(btrim(b."currency")), '^0x', '') = cfg.usd_token_address
   GROUP BY lower(b."account"), lower(b."currency")
 ),
 ranked AS (
