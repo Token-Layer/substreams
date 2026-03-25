@@ -40,6 +40,14 @@ pub struct CurTokenStatsRow {
     pub evt_block_time: Option<prost_types::Timestamp>,
 }
 
+pub struct IndexingProgressRow {
+    pub row_id: String,
+    pub module: String,
+    pub last_seen_block: i64,
+    pub last_seen_block_hash: String,
+    pub last_seen_at: Option<prost_types::Timestamp>,
+}
+
 fn bytes_to_hex_prefixed(value: &[u8]) -> String {
     format!("0x{}", Hex(value).to_string())
 }
@@ -129,6 +137,7 @@ pub fn events_to_database_changes(
     events: contract::Events,
     candle_rows: Vec<AggTokenCandle1mRow>,
     cur_token_stats_rows: Vec<CurTokenStatsRow>,
+    indexing_progress: IndexingProgressRow,
 ) -> DatabaseChanges {
     let mut tables = Tables::new();
 
@@ -149,6 +158,14 @@ pub fn events_to_database_changes(
         row.set("external_token", bytes_to_hex_prefixed(&evt.external_token));
         row.set("wrapped_token", bytes_to_hex_prefixed(&evt.wrapped_token));
         row.set("adapter_type", evt.adapter_type as i64);
+    }
+
+    let progress_row = tables.upsert_row("indexing_progress", indexing_progress.row_id);
+    progress_row.set("module", indexing_progress.module);
+    progress_row.set("last_seen_block", indexing_progress.last_seen_block);
+    progress_row.set("last_seen_block_hash", indexing_progress.last_seen_block_hash);
+    if let Some(value) = indexing_progress.last_seen_at {
+        progress_row.set("last_seen_at", value);
     }
 
     for evt in events.registry_adapter_template_resets.into_iter() {

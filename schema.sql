@@ -1991,6 +1991,15 @@ CREATE TABLE IF NOT EXISTS "cur_token_stats" (
 CREATE INDEX IF NOT EXISTS "idx_cur_token_stats_token_address" ON "cur_token_stats" ("token_address");
 CREATE INDEX IF NOT EXISTS "idx_cur_token_stats_evt_block_number" ON "cur_token_stats" ("evt_block_number");
 
+CREATE TABLE IF NOT EXISTS "indexing_progress" (
+  "_pk" TEXT PRIMARY KEY,
+  "module" TEXT,
+  "last_seen_block" NUMERIC,
+  "last_seen_block_hash" TEXT,
+  "last_seen_at" TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS "idx_indexing_progress_last_seen_block" ON "indexing_progress" ("last_seen_block");
+
 CREATE TABLE IF NOT EXISTS "dim_token" (
   "token_layer_id" TEXT PRIMARY KEY,
   "token_address" TEXT,

@@ -4808,6 +4808,7 @@ fn map_events(
 
 #[substreams::handlers::map]
 fn db_out(
+    blk: eth::Block,
     events: contract::Events,
     store_token_candle_open_1m: store::StoreGetBigDecimal,
     store_token_candle_high_1m: store::StoreGetBigDecimal,
@@ -4965,9 +4966,18 @@ fn db_out(
         });
     }
 
+    let indexing_progress = db_changes::IndexingProgressRow {
+        row_id: "db_out".to_string(),
+        module: "db_out".to_string(),
+        last_seen_block: blk.number as i64,
+        last_seen_block_hash: format!("0x{}", Hex(&blk.hash).to_string()),
+        last_seen_at: Some(blk.timestamp().to_owned()),
+    };
+
     Ok(db_changes::events_to_database_changes(
         events,
         candle_rows,
         cur_token_stats_rows,
+        indexing_progress,
     ))
 }
