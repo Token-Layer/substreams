@@ -1,0 +1,233 @@
+specVersion: v0.1.0
+package:
+  name: token_layer
+  version: v0.1.0
+
+imports:
+    ethcommon: https://spkg.io/streamingfast/ethereum-common-v0.3.3.spkg
+
+protobuf:
+  files:
+    - contract.proto
+    - database.proto
+    - sink_sql.proto
+  importPaths:
+    - ./proto
+  excludePaths:
+    - sf/substreams
+    - google
+
+binaries:
+  default:
+    type: wasm/rust-v1
+    file: ./target/wasm32-unknown-unknown/release/substreams.wasm
+
+modules:
+
+  - name: store_token_coin_created
+    kind: store
+    initialBlock: 64003830
+    updatePolicy: set
+    valueType: proto:dynamic_datasource
+    inputs:
+      - source: sf.ethereum.type.v2.Block
+  - name: store_token_id_to_address
+    kind: store
+    initialBlock: 64003830
+    updatePolicy: set
+    valueType: string
+    inputs:
+      - source: sf.ethereum.type.v2.Block
+  - name: store_token_decimals
+    kind: store
+    initialBlock: 64003830
+    updatePolicy: set
+    valueType: int64
+    inputs:
+      - source: sf.ethereum.type.v2.Block
+  - name: store_token_total_supply
+    kind: store
+    initialBlock: 64003830
+    updatePolicy: set
+    valueType: bigint
+    inputs:
+      - source: sf.ethereum.type.v2.Block
+  - name: store_uniswap_v3_pools
+    kind: store
+    initialBlock: 64003830
+    updatePolicy: set
+    valueType: int64
+    inputs:
+      - params: string
+      - source: sf.ethereum.type.v2.Block
+      - store: store_token_coin_created
+  - name: store_uniswap_v3_pool_meta
+    kind: store
+    initialBlock: 64003830
+    updatePolicy: set
+    valueType: string
+    inputs:
+      - params: string
+      - source: sf.ethereum.type.v2.Block
+      - store: store_token_coin_created
+  - name: store_wallet_token_balances
+    kind: store
+    initialBlock: 64003830
+    updatePolicy: add
+    valueType: bigint
+    inputs:
+      - source: sf.ethereum.type.v2.Block
+      - store: store_token_coin_created
+  - name: store_user_fee_balances
+    kind: store
+    initialBlock: 64003830
+    updatePolicy: add
+    valueType: bigint
+    inputs:
+      - source: sf.ethereum.type.v2.Block
+  - name: store_user_fee_received_totals
+    kind: store
+    initialBlock: 64003830
+    updatePolicy: add
+    valueType: bigint
+    inputs:
+      - source: sf.ethereum.type.v2.Block
+  - name: store_protocol_fee_balances
+    kind: store
+    initialBlock: 64003830
+    updatePolicy: add
+    valueType: bigint
+    inputs:
+      - source: sf.ethereum.type.v2.Block
+  - name: map_events
+    kind: map
+    initialBlock: 64003830
+    inputs:
+      - params: string
+      - source: sf.ethereum.type.v2.Block
+      - store: store_token_coin_created
+      - store: store_token_id_to_address
+      - store: store_token_decimals
+      - store: store_token_total_supply
+      - store: store_uniswap_v3_pools
+      - store: store_uniswap_v3_pool_meta
+      - store: store_wallet_token_balances
+      - store: store_user_fee_balances
+      - store: store_user_fee_received_totals
+      - store: store_protocol_fee_balances
+    output:
+      type: proto:contract.v1.Events
+  - name: store_token_candle_open_1m
+    kind: store
+    initialBlock: 64003830
+    updatePolicy: set_if_not_exists
+    valueType: bigdecimal
+    inputs:
+      - map: map_events
+  - name: store_token_candle_high_1m
+    kind: store
+    initialBlock: 64003830
+    updatePolicy: max
+    valueType: bigdecimal
+    inputs:
+      - map: map_events
+  - name: store_token_candle_low_1m
+    kind: store
+    initialBlock: 64003830
+    updatePolicy: min
+    valueType: bigdecimal
+    inputs:
+      - map: map_events
+  - name: store_token_candle_close_1m
+    kind: store
+    initialBlock: 64003830
+    updatePolicy: set
+    valueType: bigdecimal
+    inputs:
+      - map: map_events
+  - name: store_token_candle_volume_token_1m
+    kind: store
+    initialBlock: 64003830
+    updatePolicy: add
+    valueType: bigdecimal
+    inputs:
+      - map: map_events
+  - name: store_token_candle_volume_token_raw_1m
+    kind: store
+    initialBlock: 64003830
+    updatePolicy: add
+    valueType: bigint
+    inputs:
+      - map: map_events
+  - name: store_token_candle_volume_usd_1m
+    kind: store
+    initialBlock: 64003830
+    updatePolicy: add
+    valueType: bigdecimal
+    inputs:
+      - map: map_events
+  - name: store_token_candle_volume_usd_raw_1m
+    kind: store
+    initialBlock: 64003830
+    updatePolicy: add
+    valueType: bigint
+    inputs:
+      - map: map_events
+  - name: store_token_candle_trade_count_1m
+    kind: store
+    initialBlock: 64003830
+    updatePolicy: add
+    valueType: int64
+    inputs:
+      - map: map_events
+  - name: store_token_total_volume_token
+    kind: store
+    initialBlock: 64003830
+    updatePolicy: add
+    valueType: bigdecimal
+    inputs:
+      - map: map_events
+  - name: store_token_total_volume_token_raw
+    kind: store
+    initialBlock: 64003830
+    updatePolicy: add
+    valueType: bigint
+    inputs:
+      - map: map_events
+  - name: store_token_total_volume_usd
+    kind: store
+    initialBlock: 64003830
+    updatePolicy: add
+    valueType: bigdecimal
+    inputs:
+      - map: map_events
+  - name: store_token_total_volume_usd_raw
+    kind: store
+    initialBlock: 64003830
+    updatePolicy: add
+    valueType: bigint
+    inputs:
+      - map: map_events
+  - name: db_out
+    kind: map
+    initialBlock: 64003830
+    inputs:
+      - source: sf.ethereum.type.v2.Block
+      - map: map_events
+      - store: store_token_candle_open_1m
+      - store: store_token_candle_high_1m
+      - store: store_token_candle_low_1m
+      - store: store_token_candle_close_1m
+      - store: store_token_candle_volume_token_1m
+      - store: store_token_candle_volume_token_raw_1m
+      - store: store_token_candle_volume_usd_1m
+      - store: store_token_candle_volume_usd_raw_1m
+      - store: store_token_candle_trade_count_1m
+      - store: store_token_total_volume_token
+      - store: store_token_total_volume_token_raw
+      - store: store_token_total_volume_usd
+      - store: store_token_total_volume_usd_raw
+    output:
+      type: proto:sf.substreams.sink.database.v1.DatabaseChanges
+
+network: monad

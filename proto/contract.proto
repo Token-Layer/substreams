@@ -4,6 +4,7 @@ import "google/protobuf/timestamp.proto";
 
 package contract.v1;
 message Events {
+    uint64 block_number_heartbeat = 112;
     repeated Registry_AdapterDeployed registry_adapter_deployeds = 1;
     repeated Registry_AdapterTemplateReset registry_adapter_template_resets = 2;
     repeated Registry_AdapterTemplateSet registry_adapter_template_sets = 3;

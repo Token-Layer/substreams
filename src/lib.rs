@@ -4749,7 +4749,10 @@ fn map_events(
     let uniswap_v3_factory = resolve_uniswap_factory_address(&params);
     let oapp_tracked_contract = resolve_oapp_address(&params);
     let created_in_block = tracked_token_addresses_created_in_block(&blk);
-    let mut events = contract::Events::default();
+    let mut events = contract::Events {
+        block_number_heartbeat: blk.number,
+        ..Default::default()
+    };
     map_registry_events(&blk, &mut events);
     map_oapp_events(&blk, &oapp_tracked_contract, &mut events);
     map_manager_events(&blk, &mut events);

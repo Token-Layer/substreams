@@ -9,16 +9,13 @@ ACTION="${TOKENLAYER_ACTION:-live}"
 AUTO_SETUP="${TOKENLAYER_AUTO_SETUP:-1}"
 
 if [[ -z "$CHAIN" ]]; then
-  echo "Set TOKENLAYER_CHAIN to one of: base-sepolia, bnb-testnet" >&2
+  echo "Set TOKENLAYER_CHAIN to one of: base-sepolia, bnb-testnet, ethereum, bnb, base, monad, polygon" >&2
   exit 1
 fi
 
 case "$CHAIN" in
-  base-sepolia)
-    RUNNER="./scripts/sink-sql-base-sepolia.sh"
-    ;;
-  bnb-testnet)
-    RUNNER="./scripts/sink-sql-bnb-testnet.sh"
+  base-sepolia|bnb-testnet|ethereum|bnb|base|monad|polygon)
+    RUNNER="./scripts/sink-sql-chain.sh"
     ;;
   *)
     echo "Unsupported TOKENLAYER_CHAIN: $CHAIN" >&2
@@ -27,7 +24,7 @@ case "$CHAIN" in
 esac
 
 if [[ "$AUTO_SETUP" == "1" && "$ACTION" != "setup" ]]; then
-  "$RUNNER" setup
+  "$RUNNER" "$CHAIN" setup
 fi
 
-exec "$RUNNER" "$ACTION"
+exec "$RUNNER" "$CHAIN" "$ACTION"

@@ -3,6 +3,8 @@
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct Events {
+    #[prost(uint64, tag="112")]
+    pub block_number_heartbeat: u64,
     #[prost(message, repeated, tag="1")]
     pub registry_adapter_deployeds: ::prost::alloc::vec::Vec<RegistryAdapterDeployed>,
     #[prost(message, repeated, tag="2")]

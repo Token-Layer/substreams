@@ -42,7 +42,6 @@ ARGS=(
 FLAG_ARGS=(
   --endpoint "$SUBSTREAMS_ENDPOINT"
   --bytes-encoding 0xhex
-  --development-mode
 )
 HANDLE_REORGS="${HANDLE_REORGS:-1}"
 UNDO_BUFFER_SIZE="${UNDO_BUFFER_SIZE:-200}"

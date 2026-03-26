@@ -15,7 +15,7 @@ COPY Cargo.toml Cargo.lock build.rs buf.gen.yaml rust-toolchain.toml ./
 COPY abi ./abi
 COPY proto ./proto
 COPY src ./src
-COPY substreams.yaml substreams-bsc-testnet.yaml substreams-sink.yaml substreams-bsc-testnet-sink.yaml ./
+COPY substreams*.yaml ./
 
 RUN cargo build --release --target wasm32-unknown-unknown
 
@@ -40,7 +40,7 @@ COPY --from=builder /app/target/wasm32-unknown-unknown/release/substreams.wasm /
 COPY schema.sql ./
 COPY sql ./sql
 COPY scripts ./scripts
-COPY substreams.yaml substreams-bsc-testnet.yaml substreams-sink.yaml substreams-bsc-testnet-sink.yaml ./
+COPY substreams*.yaml ./
 
 RUN chmod +x ./scripts/*.sh
 
