@@ -33,8 +33,6 @@ START_BLOCK="${START_BLOCK:-}"
 STOP_BLOCK="${STOP_BLOCK:-}"
 AUTH_ARGS=()
 EXTRA_HEADERS=()
-RANGE_ARG=()
-
 ARGS=(
   "$DATABASE_URL"
   "$MANIFEST"
@@ -47,13 +45,21 @@ HANDLE_REORGS="${HANDLE_REORGS:-1}"
 UNDO_BUFFER_SIZE="${UNDO_BUFFER_SIZE:-200}"
 
 if [[ "$HANDLE_REORGS" == "1" ]]; then
+  # True reorg handling: process near-head blocks and let the sink undo/replay DB changes on reorg.
+  FLAG_ARGS+=(--undo-buffer-size "0")
+elif [[ -n "${UNDO_BUFFER_SIZE:-}" && "$UNDO_BUFFER_SIZE" != "0" ]]; then
+  # Buffered mode: delay writes until blocks are sufficiently confirmed.
   FLAG_ARGS+=(--undo-buffer-size "$UNDO_BUFFER_SIZE")
 else
   FLAG_ARGS+=(--final-blocks-only)
 fi
 
-if [[ -n "$START_BLOCK" || -n "$STOP_BLOCK" ]]; then
-  RANGE_ARG=("${START_BLOCK}:${STOP_BLOCK}")
+if [[ -n "$START_BLOCK" ]]; then
+  FLAG_ARGS+=(--start-block "$START_BLOCK")
+fi
+
+if [[ -n "$STOP_BLOCK" ]]; then
+  FLAG_ARGS+=(--stop-block "$STOP_BLOCK")
 fi
 
 if [[ -n "${SUBSTREAMS_API_KEY:-}" ]]; then
@@ -70,4 +76,4 @@ FLAG_ARGS+=(-p "store_uniswap_v3_pools=uniswap_v3_factory=${UNISWAP_V3_FACTORY}"
 FLAG_ARGS+=(-p "store_uniswap_v3_pool_meta=uniswap_v3_factory=${UNISWAP_V3_FACTORY}")
 FLAG_ARGS+=(-p "map_events=uniswap_v3_factory=${UNISWAP_V3_FACTORY}&oapp_address=${OAPP_ADDRESS}&usd_token_address=${USD_TOKEN_ADDRESS}&usd_token_decimals=${USD_TOKEN_DECIMALS}&launchpad_usd_decimals=${LAUNCHPAD_USD_DECIMALS}&default_token_decimals=${DEFAULT_TOKEN_DECIMALS}&default_token_supply=${DEFAULT_TOKEN_SUPPLY}")
 
-substreams-sink-sql run "${ARGS[@]}" "${RANGE_ARG[@]}" "${FLAG_ARGS[@]}" "${AUTH_ARGS[@]}" "${EXTRA_HEADERS[@]}"
+substreams-sink-sql run "${ARGS[@]}" "${FLAG_ARGS[@]}" "${AUTH_ARGS[@]}" "${EXTRA_HEADERS[@]}"

@@ -54,6 +54,10 @@ if [[ "${APPLY_ANALYTICS_SQL:-1}" == "1" && -f "./sql/protocol_analytics.sql" ]]
   psql "$PSQL_DSN" -v ON_ERROR_STOP=1 -f "$TMP_ANALYTICS_SQL"
 fi
 
+if [[ -f "./sql/indexer_registry.sql" ]]; then
+  psql "$PSQL_DSN" -v ON_ERROR_STOP=1 -f "./sql/indexer_registry.sql"
+fi
+
 # Ensure token relationships/FKs are present for all token-bearing tables.
 if [[ "${APPLY_TOKEN_RELATIONSHIPS_SQL:-1}" == "1" && -f "./sql/token_relationships.sql" ]]; then
   TMP_REL_SQL="$(mktemp)"
@@ -90,3 +94,20 @@ fi
 # Create sink system tables (cursor/history/sink_info) in target schema.
 # Some sink versions require a manifest that contains a `sink:` block.
 substreams-sink-sql setup "$DATABASE_URL" "$SETUP_MANIFEST" --system-tables-only --bytes-encoding 0xhex
+
+if [[ "${REGISTER_INDEXER_CHAIN:-1}" == "1" ]]; then
+  INDEXER_CHAIN="${TOKENLAYER_CHAIN:-${DB_SCHEMA#indexer_evm_}}"
+  INDEXER_CHAIN="${INDEXER_CHAIN//_/-}"
+  INDEXER_CHAIN_TYPE="${INDEXER_CHAIN_TYPE:-evm}"
+  INDEXER_SORT_ORDER="${INDEXER_SORT_ORDER:-1000}"
+  psql "$PSQL_DSN" -v ON_ERROR_STOP=1 <<SQL
+SELECT indexer.register_indexer_chain(
+  '${INDEXER_CHAIN}',
+  '${DB_SCHEMA}',
+  '${INDEXER_CHAIN_TYPE}',
+  TRUE,
+  ${INDEXER_SORT_ORDER},
+  jsonb_build_object('registered_by', 'sink-sql-setup')
+);
+SQL
+fi

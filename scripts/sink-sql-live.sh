@@ -54,9 +54,13 @@ FLAG_ARGS=(
   --bytes-encoding 0xhex
 )
 HANDLE_REORGS="${HANDLE_REORGS:-1}"
-UNDO_BUFFER_SIZE="${UNDO_BUFFER_SIZE:-1}"
+UNDO_BUFFER_SIZE="${UNDO_BUFFER_SIZE:-200}"
 
 if [[ "$HANDLE_REORGS" == "1" ]]; then
+  # True reorg handling: process near-head blocks and let the sink undo/replay DB changes on reorg.
+  FLAG_ARGS+=(--undo-buffer-size "0")
+elif [[ -n "${UNDO_BUFFER_SIZE:-}" && "$UNDO_BUFFER_SIZE" != "0" ]]; then
+  # Buffered mode: delay writes until blocks are sufficiently confirmed.
   FLAG_ARGS+=(--undo-buffer-size "$UNDO_BUFFER_SIZE")
 else
   FLAG_ARGS+=(--final-blocks-only)

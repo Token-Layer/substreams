@@ -112,6 +112,90 @@ Notes:
 - `START_BLOCK` is now optional. If omitted, Substreams uses module `initialBlock` from the manifest.
 - `SUBSTREAMS_PARALLEL_WORKERS` is consumed by backfill only.
 
+### Adding A New Chain
+
+The flow is now registry-driven. A chain schema is still created per chain, but the shared `indexer.vw_*` views and `ws-gateway` triggers are rebuilt from `indexer.indexer_chains` instead of hand-editing SQL unions.
+
+1. Create the per-chain env file:
+
+```bash
+cp .env.ethereum.sink .env.ethereum.sink.local  # or edit the tracked .env.<chain>.sink directly
+```
+
+At minimum set:
+- `TOKENLAYER_CHAIN`
+- `SUBSTREAMS_ENDPOINT`
+- either shared auth in `.env.shared.sink` or per-chain `SUBSTREAMS_API_KEY` / `SUBSTREAMS_API_TOKEN`
+- optional `START_BLOCK` / `STOP_BLOCK`
+
+2. Run per-chain setup:
+
+```bash
+./scripts/sink-sql-chain.sh ethereum setup
+```
+
+What `setup` now does:
+- creates the target schema if it does not exist
+- applies `schema.sql`
+- applies per-schema analytics SQL
+- creates sink system tables
+- registers the chain in `indexer.indexer_chains` automatically for the EVM chain wrapper flow
+
+3. Run backfill or live sync:
+
+```bash
+./scripts/sink-sql-chain.sh ethereum backfill
+./scripts/sink-sql-chain.sh ethereum live
+```
+
+4. Rebuild shared indexer views and gateway triggers:
+
+```bash
+./scripts/setup-indexer-global.sh
+```
+
+That script now:
+- ensures `indexer.indexer_chains` exists
+- reads enabled chains from the registry
+- generates and applies the global `indexer.vw_*` views
+- regenerates `indexer.vw_indexing_progress_by_chain` / `public.vw_indexing_progress_by_chain`
+- reapplies `indexer_token_metadata.sql`
+- reapplies `packages/ws-gateway/sql/gateway.sql` by default so trigger installs match the same registry
+
+### Registering Existing Schemas
+
+Older schemas created before registry auto-registration need a one-time manual registration.
+
+Example:
+
+```bash
+./scripts/register-indexer-chain.sh base-sepolia indexer_evm_base_sepolia evm 10
+./scripts/register-indexer-chain.sh bnb-testnet indexer_evm_bnb_testnet evm 20
+./scripts/register-indexer-chain.sh solana-devnet indexer_sol_solana_devnet solana 30
+./scripts/setup-indexer-global.sh
+```
+
+Notes:
+- the 4th argument is `sort_order`; it only controls registry ordering for generated unions and trigger install order
+- rerunning `register-indexer-chain.sh` updates the existing row, so you can change `sort_order` later
+- after changing registry rows, rerun `./scripts/setup-indexer-global.sh`
+
+### Registry
+
+Source of truth for global bootstrap:
+- table `indexer.indexer_chains`
+- definition in [`sql/indexer_registry.sql`](/Users/chrisciszak/Documents/Projects/Thrust/Thrust%20Web%20App/substreams/token_layer/sql/indexer_registry.sql)
+
+Useful helpers:
+- [`scripts/register-indexer-chain.sh`](/Users/chrisciszak/Documents/Projects/Thrust/Thrust%20Web%20App/substreams/token_layer/scripts/register-indexer-chain.sh) for manual registration or non-EVM flows
+- [`scripts/setup-indexer-global.sh`](/Users/chrisciszak/Documents/Projects/Thrust/Thrust%20Web%20App/substreams/token_layer/scripts/setup-indexer-global.sh) to regenerate global views and reapply gateway bootstrap
+- [`scripts/generate-indexer-global-sql.mjs`](/Users/chrisciszak/Documents/Projects/Thrust/Thrust%20Web%20App/substreams/token_layer/scripts/generate-indexer-global-sql.mjs) generates the SQL applied by the global setup script
+
+Indexing progress:
+- `indexer.vw_indexing_progress_by_chain` exposes one row per enabled registered chain
+- it reads the latest row from each schema's `indexing_progress` table
+- useful columns are `last_seen_block`, `last_seen_at`, and `seconds_since_last_seen`
+
 ## Railway Deployment
 
 Railway should run this as one service per chain, using the same image:
@@ -180,8 +264,10 @@ Service: tokenlayer-substreams-bnb-testnet
 ## Global Indexer + Token Metadata Worker
 
 `./scripts/setup-indexer-global.sh` now applies:
+- `sql/indexer_registry.sql` (shared chain registry used by the bootstrap)
 - `sql/indexer_global_views.sql` (cross-chain `indexer.vw_*` views)
 - `sql/indexer_token_metadata.sql` (token URI queue + parsed metadata tables/functions)
+- `../packages/ws-gateway/sql/gateway.sql` by default, unless `APPLY_GATEWAY_SQL=0`
 
 Token metadata pipeline:
 1. `indexer.sync_token_uri_sources()` collects token URIs from `indexer.vw_tokens_created` and enqueues missing jobs.
