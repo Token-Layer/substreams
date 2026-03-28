@@ -46,6 +46,7 @@ CREATE TABLE IF NOT EXISTS indexer.token_metadata (
   image_url TEXT,
   image_storage_path TEXT,
   image_storage_url TEXT,
+  banner_url TEXT,
   name TEXT,
   symbol TEXT,
   description TEXT,
@@ -55,12 +56,107 @@ CREATE TABLE IF NOT EXISTS indexer.token_metadata (
   tags TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[],
   token TEXT,
   website TEXT,
+  twitter_url TEXT,
+  discord_url TEXT,
+  telegram_url TEXT,
+  farcaster_url TEXT,
+  github_url TEXT,
+  socials JSONB,
   attributes JSONB,
   raw_json JSONB NOT NULL,
   content_sha256 TEXT,
   fetched_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   immutable BOOLEAN NOT NULL DEFAULT true
 );
+
+ALTER TABLE indexer.token_metadata
+  ADD COLUMN IF NOT EXISTS banner_url TEXT,
+  ADD COLUMN IF NOT EXISTS twitter_url TEXT,
+  ADD COLUMN IF NOT EXISTS discord_url TEXT,
+  ADD COLUMN IF NOT EXISTS telegram_url TEXT,
+  ADD COLUMN IF NOT EXISTS farcaster_url TEXT,
+  ADD COLUMN IF NOT EXISTS github_url TEXT,
+  ADD COLUMN IF NOT EXISTS socials JSONB;
+
+UPDATE indexer.token_metadata
+SET banner_url = COALESCE(raw_json->>'banner', raw_json->>'banner_url'),
+    created_on = CASE
+      WHEN COALESCE(raw_json->>'createdOn', '') ~* '^https?://' THEN NULL
+      ELSE COALESCE(raw_json->>'createdOn', created_on)
+    END,
+    tags = COALESCE(ARRAY(
+      SELECT DISTINCT NULLIF(regexp_replace(lower(value), '^#+', ''), '')
+      FROM unnest(COALESCE(tags, ARRAY[]::TEXT[])) AS value
+      WHERE NULLIF(regexp_replace(lower(value), '^#+', ''), '') IS NOT NULL
+    ), ARRAY[]::TEXT[]),
+    twitter_url = COALESCE(
+      raw_json->>'twitter',
+      raw_json->>'twitter_url',
+      raw_json->>'x',
+      raw_json->>'x_url',
+      raw_json->'socials'->>'twitter',
+      raw_json->'socials'->>'x',
+      twitter_url
+    ),
+    discord_url = COALESCE(
+      raw_json->>'discord',
+      raw_json->>'discord_url',
+      raw_json->'socials'->>'discord',
+      discord_url
+    ),
+    telegram_url = COALESCE(
+      raw_json->>'telegram',
+      raw_json->>'telegram_url',
+      raw_json->'socials'->>'telegram',
+      telegram_url
+    ),
+    farcaster_url = COALESCE(
+      raw_json->>'farcaster',
+      raw_json->>'farcaster_url',
+      raw_json->'socials'->>'farcaster',
+      farcaster_url
+    ),
+    github_url = COALESCE(
+      raw_json->>'github',
+      raw_json->>'github_url',
+      raw_json->'socials'->>'github',
+      github_url
+    ),
+    socials = NULLIF(jsonb_strip_nulls(jsonb_build_object(
+      'twitter', COALESCE(
+        raw_json->>'twitter',
+        raw_json->>'twitter_url',
+        raw_json->>'x',
+        raw_json->>'x_url',
+        raw_json->'socials'->>'twitter',
+        raw_json->'socials'->>'x',
+        twitter_url
+      ),
+      'discord', COALESCE(
+        raw_json->>'discord',
+        raw_json->>'discord_url',
+        raw_json->'socials'->>'discord',
+        discord_url
+      ),
+      'telegram', COALESCE(
+        raw_json->>'telegram',
+        raw_json->>'telegram_url',
+        raw_json->'socials'->>'telegram',
+        telegram_url
+      ),
+      'farcaster', COALESCE(
+        raw_json->>'farcaster',
+        raw_json->>'farcaster_url',
+        raw_json->'socials'->>'farcaster',
+        farcaster_url
+      ),
+      'github', COALESCE(
+        raw_json->>'github',
+        raw_json->>'github_url',
+        raw_json->'socials'->>'github',
+        github_url
+      )
+    )), '{}'::jsonb);
 
 CREATE INDEX IF NOT EXISTS idx_token_metadata_token_layer_id
   ON indexer.token_metadata (token_layer_id);
@@ -146,6 +242,200 @@ BEGIN
 END;
 $$;
 
+CREATE OR REPLACE FUNCTION public.sync_token_uri_sources()
+RETURNS TABLE(inserted_sources BIGINT, inserted_jobs BIGINT)
+LANGUAGE sql
+SECURITY DEFINER
+AS $$
+  SELECT * FROM indexer.sync_token_uri_sources();
+$$;
+
+CREATE OR REPLACE FUNCTION public.claim_token_metadata_jobs(p_limit INTEGER DEFAULT 20)
+RETURNS TABLE(token_uri TEXT, attempts INTEGER, max_attempts INTEGER)
+LANGUAGE sql
+SECURITY DEFINER
+AS $$
+  SELECT * FROM indexer.claim_token_metadata_jobs(p_limit);
+$$;
+
+CREATE OR REPLACE FUNCTION public.token_metadata_exists(p_token_uri TEXT)
+RETURNS BOOLEAN
+LANGUAGE sql
+SECURITY DEFINER
+AS $$
+  SELECT EXISTS(
+    SELECT 1
+    FROM indexer.token_metadata m
+    WHERE m.token_uri = p_token_uri
+  );
+$$;
+
+CREATE OR REPLACE FUNCTION public.mark_token_metadata_job_done(p_token_uri TEXT)
+RETURNS VOID
+LANGUAGE sql
+SECURITY DEFINER
+AS $$
+  UPDATE indexer.token_metadata_jobs
+  SET status = 'done',
+      processed_at = now(),
+      next_retry_at = NULL,
+      last_error = NULL,
+      updated_at = now()
+  WHERE token_uri = p_token_uri;
+$$;
+
+CREATE OR REPLACE FUNCTION public.mark_token_metadata_job_failed(
+  p_token_uri TEXT,
+  p_error_message TEXT
+)
+RETURNS VOID
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+  v_attempts INTEGER := 0;
+  v_max_attempts INTEGER := 3;
+  v_next_attempts INTEGER := 1;
+  v_reached_max BOOLEAN := FALSE;
+  v_retry_at TIMESTAMPTZ := NULL;
+BEGIN
+  SELECT attempts, max_attempts
+  INTO v_attempts, v_max_attempts
+  FROM indexer.token_metadata_jobs
+  WHERE token_uri = p_token_uri;
+
+  v_next_attempts := COALESCE(v_attempts, 0) + 1;
+  v_reached_max := v_next_attempts >= COALESCE(v_max_attempts, 3);
+
+  IF NOT v_reached_max THEN
+    v_retry_at := now() + make_interval(secs => v_next_attempts * 60);
+  END IF;
+
+  UPDATE indexer.token_metadata_jobs
+  SET status = CASE WHEN v_reached_max THEN 'error' ELSE 'pending' END,
+      attempts = v_next_attempts,
+      next_retry_at = v_retry_at,
+      last_error = LEFT(COALESCE(p_error_message, ''), 4000),
+      updated_at = now()
+  WHERE token_uri = p_token_uri;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.upsert_token_metadata(
+  p_token_uri TEXT,
+  p_resolved_metadata_url TEXT,
+  p_image_url TEXT,
+  p_image_storage_path TEXT,
+  p_image_storage_url TEXT,
+  p_banner_url TEXT,
+  p_name TEXT,
+  p_symbol TEXT,
+  p_description TEXT,
+  p_created_on TEXT,
+  p_addresses JSONB,
+  p_token_layer_id TEXT,
+  p_tags TEXT[],
+  p_token TEXT,
+  p_website TEXT,
+  p_twitter_url TEXT,
+  p_discord_url TEXT,
+  p_telegram_url TEXT,
+  p_farcaster_url TEXT,
+  p_github_url TEXT,
+  p_socials JSONB,
+  p_attributes JSONB,
+  p_raw_json JSONB,
+  p_content_sha256 TEXT,
+  p_immutable BOOLEAN DEFAULT TRUE
+)
+RETURNS VOID
+LANGUAGE sql
+SECURITY DEFINER
+AS $$
+  INSERT INTO indexer.token_metadata (
+    token_uri,
+    resolved_metadata_url,
+    image_url,
+    image_storage_path,
+    image_storage_url,
+    banner_url,
+    name,
+    symbol,
+    description,
+    created_on,
+    addresses,
+    token_layer_id,
+    tags,
+    token,
+    website,
+    twitter_url,
+    discord_url,
+    telegram_url,
+    farcaster_url,
+    github_url,
+    socials,
+    attributes,
+    raw_json,
+    content_sha256,
+    fetched_at,
+    immutable
+  )
+  VALUES (
+    p_token_uri,
+    p_resolved_metadata_url,
+    p_image_url,
+    p_image_storage_path,
+    p_image_storage_url,
+    p_banner_url,
+    p_name,
+    p_symbol,
+    p_description,
+    p_created_on,
+    p_addresses,
+    p_token_layer_id,
+    COALESCE(p_tags, ARRAY[]::TEXT[]),
+    p_token,
+    p_website,
+    p_twitter_url,
+    p_discord_url,
+    p_telegram_url,
+    p_farcaster_url,
+    p_github_url,
+    p_socials,
+    p_attributes,
+    p_raw_json,
+    p_content_sha256,
+    now(),
+    COALESCE(p_immutable, TRUE)
+  )
+  ON CONFLICT (token_uri) DO UPDATE
+  SET resolved_metadata_url = EXCLUDED.resolved_metadata_url,
+      image_url = EXCLUDED.image_url,
+      image_storage_path = EXCLUDED.image_storage_path,
+      image_storage_url = EXCLUDED.image_storage_url,
+      banner_url = EXCLUDED.banner_url,
+      name = EXCLUDED.name,
+      symbol = EXCLUDED.symbol,
+      description = EXCLUDED.description,
+      created_on = EXCLUDED.created_on,
+      addresses = EXCLUDED.addresses,
+      token_layer_id = EXCLUDED.token_layer_id,
+      tags = EXCLUDED.tags,
+      token = EXCLUDED.token,
+      website = EXCLUDED.website,
+      twitter_url = EXCLUDED.twitter_url,
+      discord_url = EXCLUDED.discord_url,
+      telegram_url = EXCLUDED.telegram_url,
+      farcaster_url = EXCLUDED.farcaster_url,
+      github_url = EXCLUDED.github_url,
+      socials = EXCLUDED.socials,
+      attributes = EXCLUDED.attributes,
+      raw_json = EXCLUDED.raw_json,
+      content_sha256 = EXCLUDED.content_sha256,
+      fetched_at = EXCLUDED.fetched_at,
+      immutable = EXCLUDED.immutable;
+$$;
+
 CREATE OR REPLACE VIEW indexer.vw_token_metadata_job_status AS
 SELECT
   j.token_uri,
@@ -187,3 +477,25 @@ GRANT EXECUTE ON FUNCTION indexer.sync_token_uri_sources() TO service_role;
 
 REVOKE ALL ON FUNCTION indexer.claim_token_metadata_jobs(INTEGER) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION indexer.claim_token_metadata_jobs(INTEGER) TO service_role;
+
+REVOKE ALL ON FUNCTION public.sync_token_uri_sources() FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.sync_token_uri_sources() TO service_role;
+
+REVOKE ALL ON FUNCTION public.claim_token_metadata_jobs(INTEGER) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.claim_token_metadata_jobs(INTEGER) TO service_role;
+
+REVOKE ALL ON FUNCTION public.token_metadata_exists(TEXT) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.token_metadata_exists(TEXT) TO service_role;
+
+REVOKE ALL ON FUNCTION public.mark_token_metadata_job_done(TEXT) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.mark_token_metadata_job_done(TEXT) TO service_role;
+
+REVOKE ALL ON FUNCTION public.mark_token_metadata_job_failed(TEXT, TEXT) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.mark_token_metadata_job_failed(TEXT, TEXT) TO service_role;
+
+REVOKE ALL ON FUNCTION public.upsert_token_metadata(
+  TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, JSONB, TEXT, TEXT[], TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, JSONB, JSONB, JSONB, TEXT, BOOLEAN
+) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.upsert_token_metadata(
+  TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, JSONB, TEXT, TEXT[], TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, JSONB, JSONB, JSONB, TEXT, BOOLEAN
+) TO service_role;
